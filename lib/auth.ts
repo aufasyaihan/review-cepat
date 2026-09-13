@@ -12,6 +12,11 @@ export const auth = betterAuth({
     schema: { user, session, account, verification },
   }),
   emailAndPassword: { enabled: true },
+  rateLimit: {
+    enabled: process.env.DISABLE_RATE_LIMIT !== '1',
+    window: 60,
+    max: 200,
+  },
   user: {
     additionalFields: {
       role: {

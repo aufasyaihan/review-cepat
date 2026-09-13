@@ -21,5 +21,14 @@ export function getDb() {
   return drizzle(getPool(), { schema: { ...schema, ...relations }, mode: 'default' });
 }
 
+/** Release the shared pool used by short-lived scripts. */
+export async function closeDb(): Promise<void> {
+  if (!_pool) return;
+
+  const pool = _pool;
+  _pool = undefined;
+  await pool.end();
+}
+
 export type Db = ReturnType<typeof getDb>;
 export { relations, schema };

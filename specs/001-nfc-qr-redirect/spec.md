@@ -19,6 +19,7 @@
 - Q: What git pre-commit workflow should apply? → A: Husky pre-commit runs lint-staged (formatting/lint) and unit-test coverage before every commit; the lint-staged command is declared in package.json.
 - Q: How should the app routes be organized? → A: Route groups per domain — `(auth)`, `(admin)`, `(merchant)` with a nested `(sub-merchant)` group, `(landing-page)` for the public marketing homepage, and `(redirect)` for `/s/[slug]` — each group gets its own layout with an error catch, plus a global `[...catch]` catch-all route.
 - Q: What cookie prefix should Better Auth use? → A: `auth` (session cookie becomes `auth.session_token`); the Next.js 16 `proxy.ts` resolves the session via `auth.api.getSession`.
+- Q: How should e2e run the app? → A: Always a production build — the e2e server runs `db:migrate` → `db:seed:e2e` → `build` → `next start` against the isolated `review_cepat_test` database (never the dev server).
 
 ## User Scenarios & Testing *(mandatory)*
 

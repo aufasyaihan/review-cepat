@@ -3,7 +3,7 @@ import readline from 'node:readline/promises';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { merchantProfile, user } from '../schema';
-import { db } from '../seed-client';
+import { closeDb, db } from '../seed-client';
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -22,7 +22,8 @@ async function main() {
 
   if (!name || !email || password.length < 8) {
     console.error('Name, email, and a password of at least 8 characters are required.');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const { user: created } = await auth.api.signUpEmail({
@@ -48,10 +49,18 @@ async function main() {
 
   console.log(`\n✓ User created: ${email}`);
   console.log('  Role: MERCHANT. Log in at /login with that email and password.');
-  rl.close();
 }
 
-main().catch((err) => {
-  console.error('User seed failed:', err);
-  process.exit(1);
-});
+async function run() {
+  try {
+    await main();
+  } catch (err) {
+    console.error('User seed failed:', err);
+    process.exitCode = 1;
+  } finally {
+    rl.close();
+    await closeDb();
+  }
+}
+
+void run();

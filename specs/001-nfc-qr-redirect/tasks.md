@@ -57,7 +57,7 @@
 ### Tests for User Story 1 ⚠️ (write first, verify FAIL)
 
 - [x] T017 [P] [US1] Unit + component tests for merchant registration (businessName required ≤120 chars, country ISO-3166 alpha-2, claim invalid/used-code rejection) in domains/merchant/__tests__/ and domains/device/__tests__/ via node:test + RTL
-- [ ] T018 [P] [US1] Playwright e2e happy path (register → claim → configure single link → publish) in tests/e2e/merchant-claim.spec.ts
+- [x] T018 [P] [US1] Playwright e2e happy path (register → claim → configure single link → publish) in tests/e2e/merchant-claim.spec.ts
 
 ### Implementation for User Story 1
 
@@ -104,7 +104,7 @@
 ### Tests for User Story 3 ⚠️ (write first, verify FAIL)
 
 - [x] T032 [P] [US3] Unit tests for admin device ops (unique slug lowercase alphanumeric+hyphen 6–32, claimCodeHash salted never plaintext, disable→DISABLED, enable→CLAIMED, transfer preserves status) in domains/device/__tests__/admin
-- [ ] T033 [P] [US3] Playwright e2e admin flow in tests/e2e/admin-devices.spec.ts (create device, verify one-time code, disable, verify merchant list)
+- [x] T033 [P] [US3] Playwright e2e admin flow in tests/e2e/admin-devices.spec.ts (create device, verify one-time code, disable, verify merchant list)
 
 ### Implementation for User Story 3
 
@@ -124,8 +124,8 @@
 
 ### Tests for User Story 4 ⚠️ (write first, verify FAIL)
 
-- [ ] T037 [P] [US4] Unit tests for analytics aggregation (totals, daily, per-device, browser/deviceType/country/city/referrer breakdown; geo-absent tolerated) in domains/analytics/__tests__/
-- [ ] T038 [P] [US4] Playwright e2e in tests/e2e/analytics.spec.ts (create scans → verify dashboard counts match)
+- [x] T037 [P] [US4] Unit tests for analytics aggregation (totals, daily, per-device, browser/deviceType/country/city/referrer breakdown; geo-absent tolerated) in domains/analytics/__tests__/
+- [x] T038 [P] [US4] Playwright e2e in tests/e2e/analytics.spec.ts (create scans → verify dashboard counts match)
 
 ### Implementation for User Story 4
 
@@ -145,7 +145,7 @@
 ### Tests for User Story 5 ⚠️ (write first, verify FAIL)
 
 - [x] T041 [P] [US5] Unit tests for place search + review URL derivation (googlePlaceId unique; URL derived server-side, never client) in domains/destination/__tests__/
-- [ ] T042 [P] [US5] Playwright e2e Google-review flow in tests/e2e/google-review.spec.ts (search → select → attach → publish → scan lands on review page)
+- [x] T042 [P] [US5] Playwright e2e Google-review flow in tests/e2e/google-review.spec.ts (search → select → attach → publish → scan lands on review page)
 
 ### Implementation for User Story 5
 
@@ -179,7 +179,7 @@
 
 **Purpose**: Improvements that affect multiple user stories; gates from the constitution.
 
-- [ ] T048 [P] Run every scenario in quickstart.md (homepage, admin create, merchant claim/config/publish, single-link scan, multi-link scan, inactive states, analytics) end-to-end and fix failures
+- [x] T048 [P] Run every scenario in quickstart.md (homepage, admin create, merchant claim/config/publish, single-link scan, multi-link scan, inactive states, analytics) end-to-end and fix failures
 - [ ] T049 [P] WCAG AA audit pass on all pages (marketing homepage, landing page, merchant/admin areas) including keyboard navigation and focus states
 - [ ] T050 [P] Performance check: scan→destination <2s and homepage <2s on a standard mobile connection (SC-001, SC-007) with tachometer/devtools profiling
 - [ ] T051 [P] Security hardening pass: confirm no secrets committed, no Google Places key on the client, Zod validation at every input boundary, and document the scan endpoint's rate/abuse surface

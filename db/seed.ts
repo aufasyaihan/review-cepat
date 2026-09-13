@@ -4,7 +4,7 @@ import readline from 'node:readline/promises';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { device, user } from './schema';
-import { db } from './seed-client';
+import { closeDb, db } from './seed-client';
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -16,7 +16,8 @@ async function main() {
 
   if (!name || !email || password.length < 8) {
     console.error('Name, email, and a password of at least 8 characters are required.');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const { user: admin } = await auth.api.signUpEmail({
@@ -43,10 +44,18 @@ async function main() {
   console.log(
     `✓ Demo device created — claim code: ${claimCode} (shown once, distribute with the device)`,
   );
-  rl.close();
 }
 
-main().catch((err) => {
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+async function run() {
+  try {
+    await main();
+  } catch (err) {
+    console.error('Seed failed:', err);
+    process.exitCode = 1;
+  } finally {
+    rl.close();
+    await closeDb();
+  }
+}
+
+void run();
