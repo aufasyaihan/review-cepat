@@ -13,6 +13,11 @@
 ### Session 2026-09-13
 
 - Q: What should the new "(landing-page) layout" cover exactly? → A: A single public marketing homepage at the site root (/), serving as the branding and SEO-ready page; no separate marketing layout group and no additional marketing pages in the MVP.
+- Q: Which framework should run the unit tests? → A: Vitest — bun and the Node.js Test Runner are not used in this project; unit tests run under Vitest with the 90% coverage gate unchanged. (Deviation from constitution V allowed by direct instruction.)
+- Q: What shape should the API client take? → A: A class/object-based builder client — `api.get(path).setHeader(...).setBody(...).send()`, plus `post`, `put`, `delete`; all domain HTTP calls route through it.
+- Q: How should the public/authenticated boundary be enforced? → A: A Next.js 16 `proxy.ts` (the middleware rename) handles the Better Auth session — unauthenticated users hitting protected areas are redirected before rendering.
+- Q: What git pre-commit workflow should apply? → A: Husky pre-commit runs lint-staged (formatting/lint) and unit-test coverage before every commit; the lint-staged command is declared in package.json.
+- Q: How should the app routes be organized? → A: Route groups per domain — `(auth)`, `(admin)`, `(merchant)` with a nested `(sub-merchant)` group, `(landing-page)` for the public marketing homepage, and `(redirect)` for `/s/[slug]` — each group gets its own layout with an error catch, plus a global `[...catch]` catch-all route.
 
 ## User Scenarios & Testing *(mandatory)*
 
