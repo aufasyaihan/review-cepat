@@ -1,0 +1,66 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useCallback } from 'react';
+import { toast } from 'sonner';
+import { signOutAction } from '@/domains/auth/server/actions';
+import { authClient } from '@/lib/auth-client';
+
+export function AuthNav() {
+  const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
+
+  const signOut = useCallback(async () => {
+    const result = await signOutAction();
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Signed out');
+    router.push('/');
+    router.refresh();
+  }, [router]);
+
+  if (isPending) {
+    return (
+      <span role="status" className="text-sm text-muted-foreground">
+        Loading…
+      </span>
+    );
+  }
+
+  if (session) {
+    const role = (session.user as { role?: string }).role;
+    return (
+      <nav className="flex items-center gap-3 text-sm" aria-label="Account">
+        <a
+          href={role === 'ADMIN' ? '/admin' : '/dashboard'}
+          className="text-muted-foreground hover:underline"
+        >
+          Dashboard
+        </a>
+        <button
+          type="button"
+          onClick={signOut}
+          className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+        >
+          Sign out
+        </button>
+      </nav>
+    );
+  }
+
+  return (
+    <nav className="flex items-center gap-3 text-sm" aria-label="Account">
+      <a href="/login" className="text-muted-foreground hover:underline">
+        Log in
+      </a>
+      <a
+        href="/register"
+        className="rounded bg-primary px-3 py-1.5 text-primary-foreground hover:opacity-90"
+      >
+        Register
+      </a>
+    </nav>
+  );
+}
