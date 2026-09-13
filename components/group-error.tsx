@@ -14,10 +14,12 @@ export default function GroupError({
   void error;
   return (
     <div className="mx-auto max-w-md py-16 text-center">
-      <h1 className="text-xl font-semibold">Something went wrong in this section</h1>
-      <p className="mt-2 text-muted-foreground">
-        The error is logged with context. Please try again.
-      </p>
+      <div role="alert">
+        <h1 className="text-xl font-semibold">Something went wrong in this section</h1>
+        <p className="mt-2 text-muted-foreground">
+          The error is logged with context. Please try again.
+        </p>
+      </div>
       <button
         type="button"
         onClick={reset}

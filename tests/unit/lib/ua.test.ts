@@ -29,4 +29,15 @@ describe('lib/ua', () => {
   it('handles missing UA', () => {
     expect(parseUserAgent(null)).toEqual({ browser: null, deviceType: 'unknown' });
   });
+
+  it('detects Edge', () => {
+    const ua =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.2592.87';
+    expect(parseUserAgent(ua)).toEqual({ browser: 'Edge', deviceType: 'desktop' });
+  });
+
+  it('detects Chromium when no Safari/Edg/Chrome token wins', () => {
+    const ua = 'Mozilla/5.0 (X11; Linux x86_64) Chromium/120.0';
+    expect(parseUserAgent(ua)).toEqual({ browser: 'Chromium', deviceType: 'desktop' });
+  });
 });

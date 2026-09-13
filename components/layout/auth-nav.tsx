@@ -22,13 +22,17 @@ export function AuthNav() {
   }, [router]);
 
   if (isPending) {
-    return <span className="text-sm text-muted-foreground">Loading…</span>;
+    return (
+      <span role="status" className="text-sm text-muted-foreground">
+        Loading…
+      </span>
+    );
   }
 
   if (session) {
     const role = (session.user as { role?: string }).role;
     return (
-      <nav className="flex items-center gap-3 text-sm">
+      <nav className="flex items-center gap-3 text-sm" aria-label="Account">
         <a
           href={role === 'ADMIN' ? '/admin' : '/dashboard'}
           className="text-muted-foreground hover:underline"
@@ -47,7 +51,7 @@ export function AuthNav() {
   }
 
   return (
-    <nav className="flex items-center gap-3 text-sm">
+    <nav className="flex items-center gap-3 text-sm" aria-label="Account">
       <a href="/login" className="text-muted-foreground hover:underline">
         Log in
       </a>

@@ -56,7 +56,11 @@ export function NewDeviceForm() {
           className="mt-1 w-full rounded border px-3 py-2"
         />
       </label>
-      {create.isError && <p className="text-sm text-red-600">Creation failed</p>}
+      {create.isError && (
+        <p role="alert" className="text-sm text-red-600">
+          Creation failed
+        </p>
+      )}
       <button
         type="submit"
         disabled={create.isPending}

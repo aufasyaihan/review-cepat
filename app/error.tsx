@@ -12,10 +12,12 @@ export default function GlobalError({
 
   return (
     <div className="mx-auto max-w-md py-16 text-center">
-      <h1 className="text-xl font-semibold">Something went wrong</h1>
-      <p className="mt-2 text-muted-foreground">
-        We log every error with context. Please try again.
-      </p>
+      <div role="alert">
+        <h1 className="text-xl font-semibold">Something went wrong</h1>
+        <p className="mt-2 text-muted-foreground">
+          We log every error with context. Please try again.
+        </p>
+      </div>
       <button
         type="button"
         onClick={reset}

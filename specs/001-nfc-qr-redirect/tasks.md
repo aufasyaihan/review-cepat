@@ -180,10 +180,10 @@
 **Purpose**: Improvements that affect multiple user stories; gates from the constitution.
 
 - [x] T048 [P] Run every scenario in quickstart.md (homepage, admin create, merchant claim/config/publish, single-link scan, multi-link scan, inactive states, analytics) end-to-end and fix failures
-- [ ] T049 [P] WCAG AA audit pass on all pages (marketing homepage, landing page, merchant/admin areas) including keyboard navigation and focus states
-- [ ] T050 [P] Performance check: scan→destination <2s and homepage <2s on a standard mobile connection (SC-001, SC-007) with tachometer/devtools profiling
-- [ ] T051 [P] Security hardening pass: confirm no secrets committed, no Google Places key on the client, Zod validation at every input boundary, and document the scan endpoint's rate/abuse surface
-- [ ] T052 Verify final gate: `npm run coverage` ≥90%, `npm run lint`, `npm run typecheck`, and `npx playwright test` all green, and update .github/workflows/ci.yml if gaps found
+- [x] T049 [P] WCAG AA audit pass on all pages (marketing homepage, landing page, merchant/admin areas) including keyboard navigation and focus states
+- [x] T050 [P] Performance check: scan→destination <2s and homepage <2s on a standard mobile connection (SC-001, SC-007) with tachometer/devtools profiling
+- [x] T051 [P] Security hardening pass: confirm no secrets committed, no Google Places key on the client, Zod validation at every input boundary, and document the scan endpoint's rate/abuse surface
+- [x] T052 Verify final gate: `npm run coverage` ≥90%, `npm run lint`, `npm run typecheck`, and `npx playwright test` all green, and update .github/workflows/ci.yml if gaps found
 
 ---
 

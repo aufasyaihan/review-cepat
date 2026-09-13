@@ -10,6 +10,12 @@ export default defineConfig({
       reporter: ['text', 'json-summary'],
       include: ['domains/**', 'lib/**'],
       exclude: ['**/*.d.ts', 'domains/**/index.ts'],
+      thresholds: {
+        statements: 90,
+        branches: 90,
+        functions: 90,
+        lines: 90,
+      },
     },
   },
   resolve: {

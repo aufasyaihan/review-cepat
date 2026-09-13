@@ -115,6 +115,7 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
           <DestinationRow
             // biome-ignore lint/suspicious/noArrayIndexKey: editable unsaved rows, index is position identity until saved
             key={i}
+            index={i}
             row={row}
             onUpdate={(patch) => update(i, patch)}
             onPlace={(place) => setRowFromPlace(i, place)}
@@ -171,11 +172,13 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
 
 function DestinationRow({
   row,
+  index,
   onUpdate,
   onPlace,
   onRemove,
 }: {
   row: Row;
+  index: number;
   onUpdate: (patch: Partial<Row>) => void;
   onPlace: (place: { googlePlaceId: string; name: string }) => void;
   onRemove: () => void;
@@ -187,6 +190,7 @@ function DestinationRow({
           value={row.type}
           onChange={(e) => onUpdate({ type: e.target.value as RowType })}
           className={field}
+          aria-label={`Destination type ${index + 1}`}
         >
           {TYPE_OPTIONS.map((t) => (
             <option key={t} value={t}>
@@ -207,6 +211,11 @@ function DestinationRow({
       <input
         value={row.label}
         onChange={(e) => onUpdate({ label: e.target.value })}
+        aria-label={
+          row.type === 'GOOGLE_REVIEW'
+            ? `Business name ${index + 1}`
+            : `Label ${index + 1} (optional)`
+        }
         placeholder={
           row.type === 'GOOGLE_REVIEW' ? 'Business name (filled from Google)' : 'Label (optional)'
         }
@@ -221,6 +230,7 @@ function DestinationRow({
           onChange={(e) => onUpdate({ url: e.target.value })}
           placeholder="https://…"
           type="url"
+          aria-label="Destination URL"
           className={field}
         />
       )}
@@ -255,6 +265,7 @@ function PlaceSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search a business on Google…"
+          aria-label="Search a business on Google"
           className={field}
         />
         <button
