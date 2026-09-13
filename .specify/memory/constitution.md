@@ -1,50 +1,99 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report — temporary scratch material, remove before committing.
+  Version change: none (initial write) → 1.0.0
+  Modified principles: none (initial adoption)
+  Added sections: Core Principles (I–IX), Governance
+  Removed sections: none
+  Deferred TODOs: none
+-->
+
+# NFC Platform Constitution
+
+This constitution defines the permanent engineering principles for the NFC Platform
+project. All specifications, plans, tasks, and implementations must comply with these
+principles.
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Architecture First
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+The project follows a **Domain-Based Modular Monolith** architecture.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+- Every business capability belongs to a single domain.
+- The `app/` directory is responsible only for routing and page composition.
+- Business logic never lives inside `page.tsx` or `layout.tsx`.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+Rationale: capability-per-domain keeps each domain independently extractable into a
+backend service (see IX. Scalability) with routing kept as a thin composition layer.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### II. Frontend Principles
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+- Every `page.tsx` is a Server Component.
+- Every `layout.tsx` is synchronous and contains no data fetching.
+- Every page must stream data using TanStack Query prefetching and hydration.
+- Client components consume data only through TanStack Query.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### III. API Principles
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+- All networking goes through the domain API layer.
+- No component or hook may call `fetch()` directly.
+- Route Handlers only translate HTTP requests into domain services.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### IV. Quality Standards
+
+Every feature is incomplete unless it includes:
+
+- Unit tests.
+- Coverage above project threshold.
+- End-to-end tests for critical user flows.
+- Error handling.
+- Loading states.
+- Empty states.
+
+### V. Testing Requirements
+
+- Node.js Test Runner for unit tests.
+- React Testing Library for component tests.
+- Playwright for end-to-end tests.
+- MSW for API mocking.
+- Minimum overall coverage is **90%**.
+
+### VI. Observability
+
+- Pino is the only logging library.
+- Every request must include structured logs.
+- Errors must be logged with context.
+
+### VII. Security
+
+- Authentication uses Better Auth.
+- Authorization uses RBAC.
+- Secrets are never committed.
+- Validation uses Zod at every input boundary.
+
+### VIII. Code Quality
+
+- TypeScript strict mode.
+- Biome handles formatting and linting.
+- Pull requests must pass CI before merging.
+
+### IX. Scalability
+
+The project must remain easy to separate into independent backend services in the
+future without rewriting the frontend.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- This constitution supersedes all other practices; conflicts resolve in favor of the
+  constitution.
+- All specifications, plans, tasks, and implementations MUST comply with its
+  principles; PRs and reviews MUST verify compliance before merge.
+- Amendments MUST be documented, versioned, and approved before taking effect.
+- Versioning follows semantic versioning:
+  - MAJOR for backward-incompatible principle removals or redefinitions.
+  - MINOR for new or materially expanded principles.
+  - PATCH for clarifications, wording, and non-semantic refinements.
+- Compliance review is part of the standard review process and may be raised on any
+  spec, plan, task set, or implementation.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-09-13 | **Last Amended**: 2026-09-13
