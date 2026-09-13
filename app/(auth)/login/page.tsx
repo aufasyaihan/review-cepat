@@ -16,13 +16,14 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setPending(true);
-    const { error: authError } = await authClient.signIn.email({ email, password });
+    const { data, error: authError } = await authClient.signIn.email({ email, password });
     setPending(false);
     if (authError) {
       setError(authError.message ?? 'Sign in failed');
       return;
     }
-    router.push('/dashboard');
+    const role = (data?.user as { role?: string } | undefined)?.role;
+    router.push(role === 'ADMIN' ? '/admin' : '/dashboard');
     router.refresh();
   }
 

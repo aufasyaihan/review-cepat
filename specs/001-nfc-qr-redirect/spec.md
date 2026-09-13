@@ -18,6 +18,7 @@
 - Q: How should the public/authenticated boundary be enforced? → A: A Next.js 16 `proxy.ts` (the middleware rename) handles the Better Auth session — unauthenticated users hitting protected areas are redirected before rendering.
 - Q: What git pre-commit workflow should apply? → A: Husky pre-commit runs lint-staged (formatting/lint) and unit-test coverage before every commit; the lint-staged command is declared in package.json.
 - Q: How should the app routes be organized? → A: Route groups per domain — `(auth)`, `(admin)`, `(merchant)` with a nested `(sub-merchant)` group, `(landing-page)` for the public marketing homepage, and `(redirect)` for `/s/[slug]` — each group gets its own layout with an error catch, plus a global `[...catch]` catch-all route.
+- Q: What cookie prefix should Better Auth use? → A: `auth` (session cookie becomes `auth.session_token`); the Next.js 16 `proxy.ts` resolves the session via `auth.api.getSession`.
 
 ## User Scenarios & Testing *(mandatory)*
 

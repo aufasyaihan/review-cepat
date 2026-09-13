@@ -32,6 +32,6 @@ export const auth = betterAuth({
     cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
   advanced: {
-    cookiePrefix: 'nfc',
+    cookiePrefix: 'auth',
   },
 });
