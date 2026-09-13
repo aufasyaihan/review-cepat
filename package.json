@@ -17,6 +17,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx db/seed.ts",
+    "db:seed:user": "tsx db/seed/user.ts",
     "db:create": "mysql -u root -p < scripts/db.sql",
     "prepare": "husky"
   },
