@@ -17,6 +17,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx db/seed.ts",
+    "db:create": "mysql -u root -p < scripts/db.sql",
     "prepare": "husky"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-query": "^5.102.8",
     "better-auth": "^1.7.4",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "mysql2": "^3.24.4",
     "next": "16.3.5",

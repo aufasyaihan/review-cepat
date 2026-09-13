@@ -9,7 +9,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: "mysql://root:root@127.0.0.1:3306/nfc_platform_test"
+      DATABASE_URL: "mysql://root:root@127.0.0.1:3306/review_cepat_test"
       BETTER_AUTH_SECRET: "ci-secret-not-for-production"
       BETTER_AUTH_URL: "http://localhost:3000"
     services:
@@ -17,7 +17,7 @@ jobs:
         image: mysql:8
         env:
           MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: nfc_platform_test
+          MYSQL_DATABASE: review_cepat_test
         ports:
           - 3306:3306
         options: >-
