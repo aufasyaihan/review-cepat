@@ -1,9 +1,11 @@
 'use client';
 
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
-import { adminKeys, adminMutations, adminQueries } from '@/domains/admin/api/queries';
+import { adminKeys, adminQueries } from '@/domains/admin/api/queries';
+import { setDeviceDisabledAction } from '@/domains/device/server/actions';
+import { useAction } from '@/hooks/use-action';
 
 const STATUS_LABEL: Record<string, string> = {
   UNCLAIMED: 'Unclaimed',
@@ -15,13 +17,14 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function AdminDevicesClient() {
   const { data: devices } = useSuspenseQuery(adminQueries.devices());
-  const queryClient = useQueryClient();
-
-  async function setDisabled(id: string, disabled: boolean) {
-    const mutation = disabled ? adminMutations.disable(id) : adminMutations.enable(id);
-    await mutation.mutationFn();
-    queryClient.invalidateQueries({ queryKey: adminKeys.devices() });
-  }
+  const disable = useAction((id: string) => setDeviceDisabledAction(id, true), {
+    successMsg: 'Device disabled',
+    keys: [adminKeys.devices()],
+  });
+  const enable = useAction((id: string) => setDeviceDisabledAction(id, false), {
+    successMsg: 'Device re-enabled',
+    keys: [adminKeys.devices()],
+  });
 
   return (
     <div className="space-y-6">
@@ -60,7 +63,7 @@ export function AdminDevicesClient() {
                 {d.status === 'DISABLED' ? (
                   <button
                     type="button"
-                    onClick={() => setDisabled(d.id, false)}
+                    onClick={() => enable.mutate(d.id)}
                     className="rounded border px-2 py-1 text-xs hover:bg-muted"
                   >
                     Re-enable
@@ -68,7 +71,7 @@ export function AdminDevicesClient() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setDisabled(d.id, true)}
+                    onClick={() => disable.mutate(d.id)}
                     className="rounded border px-2 py-1 text-xs text-red-700 hover:bg-muted"
                   >
                     Disable

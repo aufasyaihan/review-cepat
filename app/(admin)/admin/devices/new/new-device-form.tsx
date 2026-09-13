@@ -1,33 +1,21 @@
 'use client';
 
-import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-
-import { adminKeys, adminMutations } from '@/domains/admin/api/queries';
+import { adminKeys } from '@/domains/admin/api/queries';
+import { createDeviceAction } from '@/domains/device/server/actions';
+import { useAction } from '@/hooks/use-action';
 
 export function NewDeviceForm() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [result, setResult] = useState<{ slug: string; claimCode: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setPending(true);
-    try {
-      const res = await adminMutations.create().mutationFn(name);
-      setResult({ slug: res.device.slug, claimCode: res.claimCode });
-      queryClient.invalidateQueries({ queryKey: adminKeys.devices() });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Creation failed');
-    } finally {
-      setPending(false);
-    }
-  }
+  const create = useAction(createDeviceAction, {
+    successMsg: 'Device created',
+    keys: [adminKeys.devices()],
+    onSuccess: (res) => setResult({ slug: res.device.slug, claimCode: res.claimCode }),
+  });
 
   if (result) {
     return (
@@ -52,7 +40,13 @@ export function NewDeviceForm() {
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        create.mutate(name);
+      }}
+      className="mt-6 space-y-4"
+    >
       <label className="block text-sm">
         Device name
         <input
@@ -62,13 +56,13 @@ export function NewDeviceForm() {
           className="mt-1 w-full rounded border px-3 py-2"
         />
       </label>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {create.isError && <p className="text-sm text-red-600">Creation failed</p>}
       <button
         type="submit"
-        disabled={pending}
+        disabled={create.isPending}
         className="w-full rounded bg-primary px-4 py-2 font-medium text-primary-foreground disabled:opacity-60"
       >
-        {pending ? 'Creating…' : 'Create device'}
+        {create.isPending ? 'Creating…' : 'Create device'}
       </button>
     </form>
   );

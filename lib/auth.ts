@@ -1,5 +1,6 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { betterAuth } from 'better-auth';
+import { nextCookies } from 'better-auth/next-js';
 
 import { getDb } from '@/db';
 import { account, session, user, verification } from '@/db/schema';
@@ -39,4 +40,7 @@ export const auth = betterAuth({
   advanced: {
     cookiePrefix: 'auth',
   },
+  // Must be the last plugin: sets session cookies when auth APIs are called
+  // from Server Actions (signIn/signUp/signOut).
+  plugins: [nextCookies()],
 });

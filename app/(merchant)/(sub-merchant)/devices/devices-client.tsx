@@ -1,10 +1,10 @@
 'use client';
 
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { deviceMutations } from '@/domains/device/api/mutations';
 import { deviceKeys, deviceQueries } from '@/domains/device/api/queries';
+import { publishDeviceAction, unpublishDeviceAction } from '@/domains/device/server/actions';
+import { useAction } from '@/hooks/use-action';
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   UNCLAIMED: { label: 'Unclaimed', tone: 'bg-muted text-muted-foreground' },
@@ -16,20 +16,14 @@ const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
 
 export function DevicesClient() {
   const { data: devices } = useSuspenseQuery(deviceQueries.list());
-  const queryClient = useQueryClient();
-  const router = useRouter();
-
-  async function onPublish(id: string) {
-    await deviceMutations.publish(id).mutationFn();
-    queryClient.invalidateQueries({ queryKey: deviceKeys.lists() });
-    router.refresh();
-  }
-
-  async function onUnpublish(id: string) {
-    await deviceMutations.unpublish(id).mutationFn();
-    queryClient.invalidateQueries({ queryKey: deviceKeys.lists() });
-    router.refresh();
-  }
+  const publish = useAction(publishDeviceAction, {
+    successMsg: 'Device published',
+    keys: [deviceKeys.lists()],
+  });
+  const unpublish = useAction(unpublishDeviceAction, {
+    successMsg: 'Device unpublished',
+    keys: [deviceKeys.lists()],
+  });
 
   if (devices.length === 0) {
     return (
@@ -79,7 +73,7 @@ export function DevicesClient() {
                 {device.status === 'PUBLISHED' ? (
                   <button
                     type="button"
-                    onClick={() => onUnpublish(device.id)}
+                    onClick={() => unpublish.mutate(device.id)}
                     className="rounded border px-3 py-1 text-sm hover:bg-muted"
                   >
                     Unpublish
@@ -88,7 +82,7 @@ export function DevicesClient() {
                   device.status !== 'DISABLED' && (
                     <button
                       type="button"
-                      onClick={() => onPublish(device.id)}
+                      onClick={() => publish.mutate(device.id)}
                       className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground"
                     >
                       Publish

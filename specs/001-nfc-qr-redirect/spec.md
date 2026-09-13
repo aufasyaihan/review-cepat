@@ -20,6 +20,8 @@
 - Q: How should the app routes be organized? → A: Route groups per domain — `(auth)`, `(admin)`, `(merchant)` with a nested `(sub-merchant)` group, `(landing-page)` for the public marketing homepage, and `(redirect)` for `/s/[slug]` — each group gets its own layout with an error catch, plus a global `[...catch]` catch-all route.
 - Q: What cookie prefix should Better Auth use? → A: `auth` (session cookie becomes `auth.session_token`); the Next.js 16 `proxy.ts` resolves the session via `auth.api.getSession`.
 - Q: How should e2e run the app? → A: Always a production build — the e2e server runs `db:migrate` → `db:seed:e2e` → `build` → `next start` against the isolated `review_cepat_test` database (never the dev server).
+- Q: Where must mutations and forms live? → A: Every `page.tsx` is a Server Component. All data mutations go through Server Actions (`'use server'`), never fetch-based route-handler mutations; every form is handled by TanStack Form submitting to a Server Action, and every mutation revalidates the affected TanStack Query cache keys on success.
+- Q: What happens after login? → A: Sign-in redirects to the correct area by role — admins land on `/admin`, merchants on `/dashboard` — after a successful Server Action sign-in; every action shows a toast (login, create device, etc.). The app header is not part of the root layout.
 
 ## User Scenarios & Testing *(mandatory)*
 

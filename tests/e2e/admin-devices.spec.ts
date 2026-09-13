@@ -14,7 +14,7 @@ test.describe('admin device management', () => {
     await page.getByRole('button', { name: 'Create device' }).click();
 
     await expect(page.getByTestId('new-device-result')).toBeVisible();
-    await expect(page.getByText('Device created')).toBeVisible();
+    await expect(page.getByText('Device created').first()).toBeVisible();
     await expect(page.getByText(/one-time claim code/i)).toBeVisible();
   });
 });

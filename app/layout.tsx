@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { AppHeader } from '@/components/layout/app-header';
+import { Toaster } from 'sonner';
+
 import { RootProvider } from '@/providers/root-provider';
 import './globals.css';
 
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className="h-full antialiased">
       <body className="flex min-h-full flex-col">
         <RootProvider>
-          <AppHeader />
+          <Toaster richColors closeButton position="top-right" />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
         </RootProvider>
       </body>

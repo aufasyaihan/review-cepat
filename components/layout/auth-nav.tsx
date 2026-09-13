@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
-
+import { toast } from 'sonner';
+import { signOutAction } from '@/domains/auth/server/actions';
 import { authClient } from '@/lib/auth-client';
 
 export function AuthNav() {
@@ -10,7 +11,12 @@ export function AuthNav() {
   const { data: session, isPending } = authClient.useSession();
 
   const signOut = useCallback(async () => {
-    await authClient.signOut();
+    const result = await signOutAction();
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Signed out');
     router.push('/');
     router.refresh();
   }, [router]);

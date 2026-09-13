@@ -1,12 +1,14 @@
 'use client';
 
-import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { destinationKeys, destinationQueries } from '@/domains/destination/api/mutations';
 import type { DESTINATION_TYPES } from '@/domains/destination/constants';
-import { deviceMutations } from '@/domains/device/api/mutations';
+import { setDestinationsAction } from '@/domains/destination/server/actions';
 import { deviceKeys, deviceQueries } from '@/domains/device/api/queries';
+import { publishDeviceAction, unpublishDeviceAction } from '@/domains/device/server/actions';
+import { useAction } from '@/hooks/use-action';
 
 type RowType = (typeof DESTINATION_TYPES)[number];
 
@@ -31,10 +33,35 @@ const field = 'w-full rounded border px-3 py-2 text-sm';
 
 export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
   const { data: device } = useSuspenseQuery(deviceQueries.detail(deviceId));
-  const queryClient = useQueryClient();
   const [rows, setRows] = useState<Row[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+
+  const save = useAction(
+    (input: { destinations: Row[] }) =>
+      setDestinationsAction(deviceId, {
+        destinations: input.destinations.map((r, position) => ({
+          type: r.type,
+          label: r.label || undefined,
+          url: r.url || undefined,
+          placeId: r.placeId || undefined,
+          position,
+          active: true,
+        })),
+      }),
+    {
+      successMsg: 'Destinations saved',
+      keys: [deviceKeys.detail(deviceId)],
+    },
+  );
+
+  const publish = useAction(publishDeviceAction, {
+    successMsg: 'Device published.',
+    keys: [deviceKeys.detail(deviceId), deviceKeys.lists()],
+  });
+
+  const unpublish = useAction(unpublishDeviceAction, {
+    successMsg: 'Device unpublished',
+    keys: [deviceKeys.detail(deviceId), deviceKeys.lists()],
+  });
 
   useEffect(() => {
     setRows(
@@ -56,47 +83,6 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
       update(i, { type: 'GOOGLE_REVIEW', placeId: place.googlePlaceId, label: place.name });
     },
     [update],
-  );
-
-  const save = useCallback(async () => {
-    setBusy(true);
-    setMessage(null);
-    try {
-      await deviceMutations.setDestinations(deviceId).mutationFn({
-        destinations: rows.map((r, position) => ({
-          type: r.type,
-          label: r.label || undefined,
-          url: r.url || undefined,
-          placeId: r.placeId || undefined,
-          position,
-          active: true,
-        })),
-      });
-      queryClient.invalidateQueries({ queryKey: deviceKeys.detail(deviceId) });
-      setMessage('Destinations saved.');
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setBusy(false);
-    }
-  }, [rows, deviceId, queryClient]);
-
-  const run = useCallback(
-    async (fn: () => Promise<unknown>, ok: string) => {
-      setBusy(true);
-      setMessage(null);
-      try {
-        await fn();
-        queryClient.invalidateQueries({ queryKey: deviceKeys.detail(deviceId) });
-        queryClient.invalidateQueries({ queryKey: deviceKeys.lists() });
-        setMessage(ok);
-      } catch (err) {
-        setMessage(err instanceof Error ? err.message : 'Action failed');
-      } finally {
-        setBusy(false);
-      }
-    },
-    [deviceId, queryClient],
   );
 
   const canPublish = useMemo(() => rows.some((r) => r.placeId || r.url), [rows]);
@@ -149,8 +135,8 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
         <div className="flex flex-wrap items-center gap-2 pt-2">
           <button
             type="button"
-            disabled={busy}
-            onClick={save}
+            disabled={save.isPending}
+            onClick={() => save.mutate({ destinations: rows })}
             className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60"
           >
             Save destinations
@@ -158,10 +144,8 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
           {device.status === 'PUBLISHED' ? (
             <button
               type="button"
-              disabled={busy}
-              onClick={() =>
-                run(() => deviceMutations.unpublish(deviceId).mutationFn(), 'Device unpublished.')
-              }
+              disabled={unpublish.isPending}
+              onClick={() => unpublish.mutate(deviceId)}
               className="rounded border px-4 py-2 text-sm hover:bg-muted disabled:opacity-60"
             >
               Unpublish
@@ -170,10 +154,8 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
             device.status !== 'DISABLED' && (
               <button
                 type="button"
-                disabled={busy || !canPublish}
-                onClick={() =>
-                  run(() => deviceMutations.publish(deviceId).mutationFn(), 'Device published.')
-                }
+                disabled={publish.isPending || !canPublish}
+                onClick={() => publish.mutate(deviceId)}
                 className="rounded bg-emerald-600 px-4 py-2 text-sm text-white disabled:opacity-60"
                 title={canPublish ? undefined : 'Add at least one destination to publish'}
               >
@@ -182,7 +164,6 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
             )
           )}
         </div>
-        {message && <p className="text-sm text-muted-foreground">{message}</p>}
       </section>
     </div>
   );
