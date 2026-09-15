@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   int,
+  json,
   mysqlTable,
   text,
   timestamp,
@@ -227,3 +228,14 @@ export const scanEvent = mysqlTable(
     index('scan_event_country_idx').on(table.country),
   ],
 );
+
+export const permission = mysqlTable('permission', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  path: varchar('path', { length: 100 }).notNull().unique(),
+  label: varchar('label', { length: 120 }).notNull(),
+  icon: varchar('icon', { length: 60 }),
+  isMenu: boolean('is_menu').notNull().default(false),
+  roles: json('roles').$type<string[]>().notNull(),
+  sort: int('sort').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});

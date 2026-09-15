@@ -22,6 +22,20 @@
       "when": 1789429170657,
       "tag": "0002_military_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1789491721058,
+      "tag": "0003_clear_doctor_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1789491741299,
+      "tag": "0004_narrow_logan",
+      "breakpoints": true
     }
   ]
 }

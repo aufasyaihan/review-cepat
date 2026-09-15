@@ -1,0 +1,1 @@
+ALTER TABLE `permission` MODIFY COLUMN `created_at` timestamp NOT NULL DEFAULT (now());
