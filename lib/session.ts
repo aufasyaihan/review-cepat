@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { can } from '@/domains/auth/server/permissions';
 import { getActiveOrganization, type Membership } from '@/domains/merchant/server/permissions';
 import { getProfileByUserId } from '@/domains/merchant/server/service';
 import { auth, type Role } from '@/lib/auth';
@@ -54,6 +55,18 @@ export async function requireApiMembership(): Promise<Membership> {
   const membership = await getActiveOrganization(user.id);
   if (!membership) throw new ForbiddenError('NO_ORG', 'Not part of an organization');
   return membership;
+}
+
+/** API guard: grants access only when the caller's role matches the permission
+ * row for `path` (API-endpoint rows, is_menu=false). Resolves owner/member
+ * org-role scoping (FR-037, Clarification 2026-09-16). */
+export async function requireApiPermission(path: string): Promise<SessionUser> {
+  const user = await requireApiUser(['ADMIN', 'MERCHANT']);
+  const membership = await getActiveOrganization(user.id);
+  const orgRole = membership?.role ?? null;
+  if (!(await can(user.role, orgRole, path)))
+    throw new ForbiddenError('NO_PERMISSION', `No permission for ${path}`);
+  return user;
 }
 
 /** Page guard the resolves a merchant's membership or redirects to registration. */

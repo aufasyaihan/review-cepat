@@ -14,6 +14,7 @@ vi.mock('@/domains/merchant/server/service', () => ({
 }));
 vi.mock('@/lib/session', () => ({
   requireApiUser: vi.fn().mockResolvedValue({ id: 'u1', role: 'MERCHANT' }),
+  requireApiPermission: vi.fn().mockResolvedValue({ id: 'u1', role: 'MERCHANT' }),
 }));
 
 import { revalidatePath } from 'next/cache';

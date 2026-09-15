@@ -7,15 +7,15 @@ import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permis
 import { assignDevice, unassignDevice } from '@/domains/merchant/server/service';
 import { type ActionResult, fail, ok } from '@/lib/action-result';
 import { auth } from '@/lib/auth';
-import { requireApiUser } from '@/lib/session';
+import { requireApiPermission } from '@/lib/session';
 
 const inviteSchema = z.object({
   email: z.string().trim().email('Enter a valid email'),
   role: z.enum(['owner', 'member'], { message: 'Role must be owner or member' }),
 });
 
-async function requireOwnerMembership() {
-  const user = await requireApiUser(['MERCHANT']);
+async function requireOwnerMembership(path: string) {
+  const user = await requireApiPermission(path);
   const membership = await getActiveOrganization(user.id);
   if (!membership) return null;
   if (!isOwner(membership)) return null;
@@ -26,7 +26,7 @@ async function requireOwnerMembership() {
 export async function inviteMemberAction(input: unknown): Promise<ActionResult<void>> {
   const parsed = inviteSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid invitation');
-  const membership = await requireOwnerMembership();
+  const membership = await requireOwnerMembership('/api/member/invite');
   if (!membership) return fail('Only an organization owner can invite members');
 
   try {
@@ -54,7 +54,7 @@ export async function assignDeviceAction(
   deviceId: string,
   memberId: string,
 ): Promise<ActionResult<void>> {
-  const membership = await requireOwnerMembership();
+  const membership = await requireOwnerMembership('/api/member/assign');
   if (!membership) return fail('Only an organization owner can assign devices');
 
   try {
@@ -68,7 +68,7 @@ export async function assignDeviceAction(
 }
 
 export async function unassignDeviceAction(deviceId: string): Promise<ActionResult<void>> {
-  const membership = await requireOwnerMembership();
+  const membership = await requireOwnerMembership('/api/member/unassign');
   if (!membership) return fail('Only an organization owner can unassign devices');
 
   try {

@@ -120,6 +120,19 @@ describe('can', () => {
     expect(await can('MERCHANT', 'member', '/user-management')).toBe(false);
     expect(await can('MERCHANT', 'owner', '/user-management')).toBe(true);
   });
+
+  it('gates API-endpoint rows (is_menu=false, label api.*) by role and org role', async () => {
+    state.rows = [
+      { path: '/api/device/create', roles: ['ADMIN'] },
+      { path: '/api/device/publish', roles: ['MERCHANT'] },
+      { path: '/api/member/invite', roles: ['ADMIN', 'MERCHANT:owner'] },
+    ];
+    expect(await can('ADMIN', null, '/api/device/create')).toBe(true);
+    expect(await can('MERCHANT', 'member', '/api/device/create')).toBe(false);
+    expect(await can('MERCHANT', 'member', '/api/device/publish')).toBe(true);
+    expect(await can('MERCHANT', 'member', '/api/member/invite')).toBe(false);
+    expect(await can('MERCHANT', 'owner', '/api/member/invite')).toBe(true);
+  });
 });
 
 describe('listNavForRole', () => {

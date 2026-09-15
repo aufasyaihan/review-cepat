@@ -235,6 +235,7 @@ export const permission = mysqlTable('permission', {
   label: varchar('label', { length: 120 }).notNull(),
   icon: varchar('icon', { length: 60 }),
   isMenu: boolean('is_menu').notNull().default(false),
+  parentId: varchar('parent_id', { length: 36 }),
   roles: json('roles').$type<string[]>().notNull(),
   sort: int('sort').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),

@@ -6,6 +6,7 @@ vi.mock('@/lib/session', () => ({
     .fn()
     .mockResolvedValue({ user: { id: 'u1', role: 'MERCHANT' }, merchantId: 7 }),
   requireApiUser: vi.fn().mockResolvedValue({ id: 'u1', role: 'ADMIN' }),
+  requireApiPermission: vi.fn().mockResolvedValue({ id: 'u1', role: 'ADMIN' }),
   requireApiMembership: vi.fn().mockResolvedValue({
     id: 'm1',
     organizationId: 'org-1',

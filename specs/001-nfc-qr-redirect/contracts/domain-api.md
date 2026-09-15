@@ -35,7 +35,11 @@ Public device resolution (in the `(redirect)` group) — see [public-scan.md](pu
   for admin) distinguishes the MERCHANT role; owner-only rows are encoded as
   `MERCHANT:owner` tokens in the `roles` array.
 - `can(role, orgRole, path)` — true when the role has a matching `permission` row;
-  enforces endpoint access in proxy.ts and `(dashboard)/layout.tsx` (FR-036).
+  enforces page access in proxy.ts and `(dashboard)/layout.tsx` (FR-036) and API
+  access via `requireApiPermission(path)` in every guarded Server Action / route
+  handler (FR-037). API-endpoint rows use `is_menu=false`, `path` = the endpoint
+  (e.g. `/api/device/create`), a dotted label (`api.create_device`), and
+  `parent_id` → the page row they serve (Clarification 2026-09-16).
 - (Better Auth client handles sign-in/sign-up/sign-out/session/org invitations.)
 
 ### merchant (organization + members)
