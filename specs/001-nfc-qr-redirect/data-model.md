@@ -123,18 +123,31 @@ One recorded interaction with a public device.
 ### permission
 
 An endpoint/nav-item row seeded by default. Controls which paths each role can access
-and which items appear in the sidebar (FR-037).
+and which items appear in the sidebar (FR-037). Two row kinds:
 
-- **Fields**: `id` (uuid PK), `path` (unique, non-null, e.g. `/dashboard`,
-  `/devices/new`), `label` (display string), `icon?` (lucide-react icon name),
-  `is_menu` (boolean — true if it appears in the sidebar nav), `roles` (array of
-  allowed role identifiers, e.g. `['ADMIN']`, `['OWNER']`, `['OWNER','MEMBER']`),
-  `sort` (int — nav order when is_menu=true), `createdAt`.
-- **Validation**: `path` unique and non-empty; `roles` non-empty; `is_menu` boolean.
-- **Relationships**: no FK references; pure configuration table seeded via `db/seed.ts`.
+- **Navigation rows**: `is_menu=true`, `parent_id=null`, `icon` set — appear in the
+  sidebar and gate pages in proxy.ts/layouts.
+- **API-endpoint rows**: `is_menu=false`, `parent_id` = the page row they serve,
+  `path` = the endpoint (e.g. `/api/device`), `icon` null, dotted label
+  (e.g. `api.create_device`) — gate access at the API layer (FR-037).
+
+- **Fields**: `id` (uuid PK), `path` (unique, non-null; e.g. `/dashboard`,
+  `/devices/new`, or an API route like `/api/device`), `label` (display string;
+  dotted `api.<action>` for API rows), `icon?` (lucide-react icon name, nav rows
+  only), `is_menu` (boolean — true if it appears in the sidebar nav),
+  `parent_id?` (nullable self-reference: for API rows, the id of the page row they
+  serve), `roles` (array of allowed role identifiers, e.g. `['ADMIN']`,
+  `['OWNER']`, `['OWNER','MEMBER']`), `sort` (int — nav order when is_menu=true;
+  0 for API rows), `createdAt`.
+- **Validation**: `path` unique and non-empty; `roles` non-empty; `is_menu` boolean;
+  API rows (`is_menu=false`) must set `parent_id` to an existing nav permission row.
+- **Relationships**: no FK references to business tables; `parent_id` is a
+  self-reference; pure configuration table seeded via `db/seed.ts`.
 - **Seed strategy**: static rows inserted by the seed script; all three roles receive
   their default nav (Admin: Dashboard/Devices/User management/Merchants/Settings;
-  Owner: Dashboard/Devices/User management/Settings; Member: Dashboard/Devices/Settings).
+  Owner: Dashboard/Devices/User management/Settings; Member: Dashboard/Devices/Settings)
+  plus API-endpoint rows for every permissioned mutation/query route, each linked to its
+  serving page and labeled `api.<action>` (e.g. `api.create_device`).
   The `(dashboard)/layout.tsx` sidebar calls `listNavForRole(role)` (domains/auth) to read
   `is_menu=true` rows; the layout guard calls `can(role, path)` to deny access to
   restricted endpoints before rendering.

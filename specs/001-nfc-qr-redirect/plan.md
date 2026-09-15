@@ -220,6 +220,8 @@ app/                                # routing + composition only (no business lo
 components/                         # shared UI: shadcn/ui (Base UI primitives)
 ├── common/                         # toasts, centered-auth wrapper, skeletons
 ├── ui/                             # shadcn-generated components (cli: shadcn add ...)
+│   ├── table.tsx                   # shadcn table primitives
+│   └── data-table/                 # reusable DataTable on @tanstack/react-table: data-table.tsx, -header, -pagination, -skeleton, -view-options (FR-038)
 ├── layout/                         # reference-matched shell (see below)
 │   ├── app-sidebar.tsx             # shadcn Sidebar (variant inset): brand header + NavMain + NavUser
 │   ├── nav-main.tsx                # nav menu rendered from permission rows (is_menu=true)
@@ -242,7 +244,7 @@ db/                                 # Drizzle ORM
 │   ├── device.ts                   # device + organizationId + memberId + claimCodeHash
 │   ├── destination.ts              # destinations + place
 │   ├── scan.ts                     # scan_event
-│   ├── permission.ts               # endpoint/nav rows: path, label, icon, is_menu, roles (FR-037)
+│   ├── permission.ts               # endpoint/nav rows: path, label, icon, is_menu, parent_id, roles; API rows is_menu=false + dotted labels (FR-037)
 │   └── analytics.ts                # aggregated views (optional in MVP)
 ├── relations.ts
 ├── index.ts

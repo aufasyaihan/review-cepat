@@ -222,6 +222,8 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 - [ ] T045 [P] WCAG AA audit of public surfaces (`/s/[slug]`, setup flow, homepage) and dashboard: keyboard nav, focus states, contrast (US8/SC-007)
 - [ ] T046 Run `npm run lint`, `npm run typecheck`, `npm run coverage` (≥90%), `npm run build`, then `npm run test:e2e` against the prod build (`db:migrate` → `db:seed:e2e` → `build` → `next start`, isolated `review_cepat_test` DB) — full green required
 - [ ] T047 Confirm quickstart.md Scenarios 1–9 all pass locally on the new structure; fix any scenario drift
+- [ ] T048 [P] [Clarification 2026-09-16] Add the reusable `DataTable` component at `components/ui/data-table/` mirroring the reference project (`khitan-plus-hipnosis/components/ui/data-table/`): `data-table.tsx` + `data-table-header.tsx` + `data-table-pagination.tsx` + `data-table-skeleton.tsx` + `data-table-view-options.tsx`, built on `@tanstack/react-table` (add the dependency) over the existing `components/ui/table.tsx` primitives; use it for ALL dashboard data views (device lists, members, merchants, organizations, analytics breakdowns) instead of hand-rolled static `Table` markup (FR-038)
+- [ ] T049 [P] [Clarification 2026-09-16] Extend the `permission` table with `parent_id` (nullable self-reference): schema + migration (`db:generate`/`db:migrate`) + `db/seed/permissions.ts` API-endpoint rows — each permissioned route gets rows with `is_menu=false`, `path` = the endpoint (e.g. `/api/device`), dotted label (e.g. `api.create_device`), `parent_id` = the page row it serves; enforce `can(role, orgRole, path)` in the domain API layer for those endpoints (FR-037)
 
 ---
 
