@@ -17,11 +17,19 @@
 - Q: What shape should the API client take? → A: A class/object-based builder client — `api.get(path).setHeader(...).setBody(...).send()`, plus `post`, `put`, `delete`; all domain HTTP calls route through it.
 - Q: How should the public/authenticated boundary be enforced? → A: A Next.js 16 `proxy.ts` (the middleware rename) handles the Better Auth session — unauthenticated users hitting protected areas are redirected before rendering.
 - Q: What git pre-commit workflow should apply? → A: Husky pre-commit runs lint-staged (formatting/lint) and unit-test coverage before every commit; the lint-staged command is declared in package.json.
-- Q: How should the app routes be organized? → A: Route groups per domain — `(auth)`, `(admin)`, `(merchant)` with a nested `(sub-merchant)` group, `(landing-page)` for the public marketing homepage, and `(redirect)` for `/s/[slug]` — each group gets its own layout with an error catch, plus a global `[...catch]` catch-all route.
+- Q: How should the app routes be organized? → A: Superseded by Q/A 2026-09-15 Session — see below. Route groups are exactly four: `(auth)`, `(dashboard)`, `(landing-page)`, `(redirect)` (FR-036).
 - Q: What cookie prefix should Better Auth use? → A: `auth` (session cookie becomes `auth.session_token`); the Next.js 16 `proxy.ts` resolves the session via `auth.api.getSession`.
 - Q: How should e2e run the app? → A: Always a production build — the e2e server runs `db:migrate` → `db:seed:e2e` → `build` → `next start` against the isolated `review_cepat_test` database (never the dev server).
 - Q: Where must mutations and forms live? → A: Every `page.tsx` is a Server Component. All data mutations go through Server Actions (`'use server'`), never fetch-based route-handler mutations; every form is handled by TanStack Form submitting to a Server Action, and every mutation revalidates the affected TanStack Query cache keys on success.
-- Q: What happens after login? → A: Sign-in redirects to the correct area by role — admins land on `/admin`, merchants on `/dashboard` — after a successful Server Action sign-in; every action shows a toast (login, create device, etc.). The app header is not part of the root layout.
+- Q: What happens after login? → A: Sign-in redirects to `/dashboard` (root path for all roles — admin, merchant, sub-merchant) after a successful Server Action sign-in; every action shows a toast (login, create device, etc.). The app header is not part of the root layout.
+
+### Session 2026-09-15
+
+- Q: Should login/register pages use framer-motion animations? → A: Yes, use framer-motion for staggered entrance animations on the login and register pages (card fade-in, form field slide-up, button delay), matching the reference project pattern. Add framer-motion as a dependency.
+- Q: Should the login/register page gradient use sky blue tones? → A: Yes, the login and register pages use a sky blue gradient background (`from-white via-sky-50/40 to-blue-50/60` light, `from-neutral-950 via-sky-950/10 to-blue-950/20` dark) with sky-tinted radial overlays, matching the primary color brand.
+- Q: Should the dashboard header include breadcrumbs and a theme toggle? → A: Yes, the authenticated header includes SidebarTrigger, a vertical Separator, a DashboardBreadcrumb component, and a ThemeToggle button on the right — matching the reference project header pattern.
+- Q: Should framer-motion animate dashboard page content too? → A: No, framer-motion is only for login and register pages. Dashboard pages rely on phantom-ui skeleton loading states instead.
+- Q: Should the merchant and sub-merchant route groups be separated rather than nested? → A: Yes — and further: all roles (admin, merchant/reseller, sub-merchant) use root-level paths with no role-specific URL prefixes and no nested route groups. Navigation and endpoint access are resolved dynamically from a Better Auth `permission` table (one row per endpoint/nav item with `path`, `label`, `icon`, `is_menu`, and permitted roles), seeded by default. The sidebar reads from this table (is_menu=true), and route access is enforced against it in proxy.ts and layouts. The route groups are exactly four: `(auth)`, `(dashboard)`, `(landing-page)`, `(redirect)`. Analytics renders within /dashboard (owner role), not a standalone route.
 
 ### Session 2026-09-14
 
@@ -107,8 +115,8 @@ A reseller (organization owner) logs in and sees a dashboard with device managem
 **Acceptance Scenarios**:
 
 1. **Given** a logged-in reseller, **When** the dashboard is opened, **Then** all devices in the organization are listed with their status and analytics.
-2. **Given** a reseller, **When** the analytics view is opened, **Then** total scans, per-device scans, daily scans, browser/device, location, referrer, and timestamps are displayed.
-3. **Given** a reseller, **When** the sub-merchant view is opened, **Then** a list of members in the organization is shown with their roles and assigned devices.
+2. **Given** a reseller, **When** the analytics section of the dashboard is opened, **Then** total scans, per-device scans, daily scans, browser/device, location, referrer, and timestamps are displayed.
+3. **Given** a reseller, **When** the user-management view is opened, **Then** a list of members in the organization is shown with their roles and assigned devices.
 4. **Given** a reseller, **When** a sub-merchant is invited or added, **Then** the new member is added to the organization with the `member` role and gains device management access.
 5. **Given** a reseller selling a device to a sub-merchant, **When** the reseller assigns the device to that member, **Then** the device becomes visible on both the member's dashboard and the owner's dashboard.
 
@@ -238,6 +246,9 @@ A first-time visitor opens the platform's public homepage and immediately unders
 - **FR-032**: The product MUST use a minimalist, enterprise visual style — neutral whites/grays, restrained spacing and typography — with sky blue (Tailwind `sky` scale) as the primary color.
 - **FR-033**: Every page that loads data MUST show a skeleton loading state via Next.js `loading.tsx` or a client Suspense boundary per component, using phantom-ui (`@aejkatappaja/phantom-ui`) to generate structure-aware shimmer placeholders, and MUST NOT block hydration on the skeleton.
 - **FR-034**: The system MUST provide a light/dark theme via next-themes on the login and dashboard areas only; the public redirect route (`/s/[slug]`) MUST NOT include the theme provider.
+- **FR-035**: Login and register pages MUST use framer-motion for staggered entrance animations — card fade-in, form field slide-up with delay stagger, and button entrance — matching the reference project pattern. Dashboard pages MUST NOT use framer-motion; skeleton loading states (phantom-ui) handle the loading UX instead.
+- **FR-036**: All roles (admin, reseller, sub-merchant) MUST use root-level paths with no role-specific URL prefixes and no nested route groups. Which pages a role can reach and which items appear in the sidebar MUST be resolved from a seeded `permission` table at runtime.
+- **FR-037**: The system MUST expose a `permission` table storing endpoints/navigation (`path`, `label`, `icon`, `is_menu`, permitted roles). The table MUST be seeded by default so each role sees the correct nav menu — admin: Dashboard/Devices/User management/Merchants/Settings; reseller: Dashboard/Devices/User management/Settings; sub-merchant: Dashboard/Devices/Settings — and route access MUST be enforced against this table in the proxy/guard and in layouts.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -247,6 +258,7 @@ A first-time visitor opens the platform's public homepage and immediately unders
 - **Destination**: A single configured redirect target or one entry in a multi-link page, typed as Google review, Instagram, Facebook, TikTok, WhatsApp, website, or custom URL.
 - **Scan Event**: A recorded interaction on a device capturing outcome, source, browser/device, location when available, referrer, and timestamp.
 - **Place**: A Google Places business listing referenced by a destination to generate a review link.
+- **Permission (Navigation/Endpoint)**: A row defining an accessible route and whether it appears in the sidebar nav. Columns: `path`, `label`, `icon`, `is_menu` (sidebar visibility), and role(s) permitted (admin, owner, member). Seeded by default so each role sees the correct nav items and endpoint access is enforced by the permissions table at both the sidebar and the proxy.ts/guard level.
 
 ## Success Criteria *(mandatory)*
 

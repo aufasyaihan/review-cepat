@@ -19,7 +19,8 @@ npm ci
 npx @better-auth/cli migrate        # org plugin tables (organization/member/invitation)
 npm run db:generate                 # squash schema -> migrations (already committed)
 npm run db:migrate                  # apply migrations to MySQL
-npm run db:seed                     # ADMIN + a reseller org (owner) + sub-merchant + devices
+npm run db:seed                     # ADMIN + reseller org (owner) + sub-merchant + devices
+                                    # + permission table rows (FR-037, sidebar/nav for all roles)
 npm run dev                         # start app (http://localhost:3000)
 ```
 
@@ -29,7 +30,7 @@ One-time UI setup (per spec FR-029/033/034):
 npx shadcn@latest init --base-color sky   # shadcn on Base UI primitives, sky primary
 npx shadcn@latest add sidebar toast skeleton ...
 npx @aejkatappaja/phantom-ui init         # SSR pre-hydration CSS + JSX types
-npm i next-themes
+npm i next-themes framer-motion           # auth page animations + theme
 ```
 
 CI runs: `npm run lint`, `npm run typecheck`, `npm run test`, `npm run coverage`
@@ -83,9 +84,11 @@ CI runs: `npm run lint`, `npm run typecheck`, `npm run test`, `npm run coverage`
 ### Scenario 7 — Reseller dashboard: analytics + member management + reset (FR-021/022)
 
 1. Log in as the owner. **Expect**: sees all org devices (including the sub-merchant's);
-   analytics view (totals, daily, per-device, browser/device/country/city/referrer);
-   members view with roles and assigned devices. Auth pages and dashboards are sidebar +
-   next-themes themed; dark mode toggle works (FR-034).
+   `/dashboard` includes the analytics section (totals, daily, per-device,
+   browser/device/country/city/referrer — owner only); `/user-management` shows members
+   with roles and assigned devices. Sidebar nav is rendered from the `permission` table —
+   Owner sees Dashboard/Devices/User management/Settings (FR-037). Auth pages and
+   dashboards are sidebar + next-themes themed; dark mode toggle works (FR-034).
 2. Owner **resets** the sub-merchant's device → destinations cleared, org KEPT, fresh
    claim code, re-setup required.
 3. **Admin resets** the same device → `organizationId` also cleared (unclaimed/admin-
@@ -94,7 +97,9 @@ CI runs: `npm run lint`, `npm run typecheck`, `npm run test`, `npm run coverage`
 ### Scenario 8 — Sub-merchant isolation (SC-008)
 
 1. As the sub-merchant, open dashboard. **Expect**: only assigned devices listed;
-   analytics and members views are not accessible (redirect/denied).
+   `/user-management` is not accessible (redirect/denied via `permission` table — Member
+   has no row for it); analytics section absent from `/dashboard`.
+   Sidebar shows Dashboard/Devices/Settings only (FR-037).
 
 ### Scenario 9 — Dashboard claim with login-or-register (FR-005)
 

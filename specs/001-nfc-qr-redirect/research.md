@@ -139,7 +139,7 @@ command input, the canonical architecture document, and the clarified spec
 - **Rationale**: Constitution VI.
 - **Alternatives considered**: winston, console.log (rejected).
 
-## 13. UI Stack & Theming
+## 13. UI Stack, Theming & Layout
 
 - **Decision**: shadcn/ui design system added via the CLI configured on **Base UI**
   (base-ui.com) primitives, used as the default for every standard primitive (buttons,
@@ -147,21 +147,47 @@ command input, the canonical architecture document, and the clarified spec
   `sidebar` shell; auth screens (login/register) are a centered card on both axes
   (FR-030). Every action/mutation shows a toast on success and error (FR-031). Visual
   language is minimalist-enterprise with sky blue (`sky` scale) as the primary (FR-032).
-  Light/dark theme served by **next-themes**, provider mounted in `(auth)` and
-  `(merchant)` layouts only — never root, never `(redirect)` (FR-034). Skeleton loading
+  Light/dark theme served by **next-themes**, provider mounted in `(auth)`, `(landing-page)`, and `(dashboard)`
+  layouts only — never root, never `(redirect)` (FR-034). Skeleton loading
   on every data page uses **phantom-ui** (`@aejkatappaja/phantom-ui`), a structure-aware
   skeleton Web Component enabled client-side that wraps the real component in
   `<phantom-ui loading>` and measures the DOM; `npx @aejkatappaja/phantom-ui init`
-  adds its SSR pre-hydration CSS + JSX types (FR-033, SC-009).
-- **Rationale**: All are explicit user mandates (Clarification, Session 2026-09-14);
+  adds its SSR pre-hydration CSS + JSX types (FR-033, SC-009). **Login and register
+  pages** use **framer-motion** for staggered entrance animations — card fade-in, form
+  field slide-up with delay stagger, and button entrance — on a sky-blue gradient
+  background (`from-white via-sky-50/40 to-blue-50/60` light / `from-neutral-950
+  via-sky-950/10 to-blue-950/20` dark) with sky-tinted radial overlays; framer-motion is
+  NOT used on any dashboard page (FR-035). The authenticated header is
+  `SidebarTrigger | Separator | Breadcrumb | ThemeToggle` matching the reference project.
+- **Rationale**: All are explicit user mandates (Clarification, Session 2026-09-15);
   Base UI is the requested primitive for shadcn; phantom-ui removes hand-maintained
   skeleton variants by deriving shimmer from the real DOM; next-themes scoping avoids
-  theme flash/blocking on the fast public redirect route.
+  theme flash/blocking on the fast public redirect route; framer-motion provides polished
+  auth-screen transitions without JS overhead on data-heavy dashboard pages.
 - **Alternatives considered**: Radix-primitive shadcn (rejected — user chose Base UI),
   shadcn `skeleton` component (rejected — user confirmed phantom-ui), hand-rolled
-  themes (rejected).
+  themes (rejected), framer-motion everywhere (rejected — skeleton loading on dashboard
+  pages preferred).
 
-## 14. Testing Framework
+## 14. Permission-Driven Navigation & Endpoint Access
+
+- **Decision**: All roles (admin, reseller/owner, sub-merchant/member) share root-level
+  paths — no role-specific URL prefixes, no nested route groups. Access and sidebar
+  navigation are driven by a project-owned `permission` table with one row per
+  endpoint/nav item: `path`, `label`, `icon`, `is_menu` (boolean — sidebar visibility),
+  and an allowed-roles field (`roles`: e.g. `['ADMIN']`, `['OWNER']`, `['OWNER','MEMBER']`).
+  The table is seeded by default (FR-037) with the correct rows per role. The `(dashboard)` group
+  layout queries `listNavForRole(role)` to render the sidebar; the proxy/layout calls
+  `can(role, path)` to reject access before rendering the page (FR-036).
+- **Rationale**: User-direct mandate: "navigation and endpoint will be seeded by default".
+  Centralised nav eliminates duplicated hardcoded NAV arrays in layout files; adding a
+  new endpoint is a seed row, not a code change. Permission enforcement at the
+  proxy/layout level catches direct URL navigation, not just sidebar clicks.
+- **Alternatives considered**: hardcoded per-role NAV arrays (rejected — user mandated
+  seeded table), nested route groups with role prefixes (rejected — user explicitly asked
+  "separated not nested" then clarified "everything should be root paths").
+
+## 15. Testing Framework
 
 - **Decision**: Vitest for unit/component tests (React Testing Library, MSW), Playwright
   for e2e, 90% coverage gate (c8/V8 provider).

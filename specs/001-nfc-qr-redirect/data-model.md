@@ -120,6 +120,25 @@ One recorded interaction with a public device.
 - **Volume**: appended-only, no updates. Age-out/partitioning is out of MVP scope
   (ponytail: naive unbounded growth, add archival when scan volume requires).
 
+### permission
+
+An endpoint/nav-item row seeded by default. Controls which paths each role can access
+and which items appear in the sidebar (FR-037).
+
+- **Fields**: `id` (uuid PK), `path` (unique, non-null, e.g. `/dashboard`,
+  `/devices/new`), `label` (display string), `icon?` (lucide-react icon name),
+  `is_menu` (boolean — true if it appears in the sidebar nav), `roles` (array of
+  allowed role identifiers, e.g. `['ADMIN']`, `['OWNER']`, `['OWNER','MEMBER']`),
+  `sort` (int — nav order when is_menu=true), `createdAt`.
+- **Validation**: `path` unique and non-empty; `roles` non-empty; `is_menu` boolean.
+- **Relationships**: no FK references; pure configuration table seeded via `db/seed.ts`.
+- **Seed strategy**: static rows inserted by the seed script; all three roles receive
+  their default nav (Admin: Dashboard/Devices/User management/Merchants/Settings;
+  Owner: Dashboard/Devices/User management/Settings; Member: Dashboard/Devices/Settings).
+  The `(dashboard)/layout.tsx` sidebar calls `listNavForRole(role)` (domains/auth) to read
+  `is_menu=true` rows; the layout guard calls `can(role, path)` to deny access to
+  restricted endpoints before rendering.
+
 ## State Transitions (device.status)
 
 ```text

@@ -4,6 +4,8 @@ Internal contract: client components talk ONLY to their domain's API layer
 (`domains/<name>/api/{queries,mutations}.ts`); route handlers translate HTTP into
 `domains/<name>/server/service.ts`. No component or hook calls `fetch()` directly
 (constitution III, architecture rule 9). Tables/fields per [data-model.md](../data-model.md).
+Route groups: four — `(auth)`, `(dashboard)` (all roles, root paths), `(landing-page)`,
+`(redirect)`.
 
 ## Public routes (external)
 
@@ -16,18 +18,22 @@ permissions, not here.
 
 ### `app/[slug]/setup` and `app/[slug]/setup/redirect`
 
-Accountless device setup — see [setup-claim.md](setup-claim.md). No theme provider, no
-auth required (FR-004).
+Accountless device setup (in the `(redirect)` group) — see [setup-claim.md](setup-claim.md).
+No theme provider, no auth required (FR-004).
 
 ### `app/s/[slug]/*`
 
-Public device resolution — see [public-scan.md](public-scan.md).
+Public device resolution (in the `(redirect)` group) — see [public-scan.md](public-scan.md).
 
 ## Domain API operations (client → route handler → domain service)
 
 ### auth
 
 - `me()` — current session + role + active organization(s) (guards UI).
+- `listNavForRole(role)` — sidebar items from `permission` rows where `is_menu=true`,
+  ordered by `sort` (FR-036/037).
+- `can(role, path)` — true when the role has a matching `permission` row; enforces
+  endpoint access in proxy.ts and `(dashboard)/layout.tsx` (FR-036).
 - (Better Auth client handles sign-in/sign-up/sign-out/session/org invitations.)
 
 ### merchant (organization + members)
