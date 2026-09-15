@@ -29,10 +29,10 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 
 **Purpose**: Close the gap between the current repo state and the plan's target foundation.
 
-- [ ] T001 Add `framer-motion` to `package.json` dependencies and run `npm i`
-- [ ] T002 [P] Add the `permission` table to `db/schema/index.ts` (`path` unique non-null, `label` non-null, `icon?`, `is_menu` boolean, `roles` non-empty array, `sort` int, `createdAt`) and export it; run `npm run db:generate` and `npm run db:migrate` (FR-037)
-- [ ] T003 [P] Delete legacy root-level empty route dirs `app/analytics`, `app/dashboard`, `app/devices`, `app/login`, `app/register` (their real pages live under route groups)
-- [ ] T004 Verify `next-themes` provider is NOT present in `app/layout.tsx` root (theme mounts only in `(auth)`, `(landing-page)`, `(dashboard)` layouts — FR-034)
+- [x] T001 Add `framer-motion` to `package.json` dependencies and run `npm i`
+- [x] T002 [P] Add the `permission` table to `db/schema/index.ts` (`path` unique non-null, `label` non-null, `icon?`, `is_menu` boolean, `roles` non-empty array, `sort` int, `createdAt`) and export it; run `npm run db:generate` and `npm run db:migrate` (FR-037)
+- [x] T003 [P] Delete legacy root-level empty route dirs `app/analytics`, `app/dashboard`, `app/devices`, `app/login`, `app/register` (their real pages live under route groups)
+- [x] T004 Verify `next-themes` provider is NOT present in `app/layout.tsx` root (theme mounts only in `(auth)`, `(landing-page)`, `(dashboard)` layouts — FR-034)
 
 ---
 

@@ -4,6 +4,7 @@ import readline from 'node:readline/promises';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/lib/auth';
 import { device, user } from './schema';
+import { ensurePermissions, PERMISSION_ROWS } from './seed/permissions';
 import { closeDb, db } from './seed-client';
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -24,6 +25,7 @@ async function main() {
     body: { name, email, password, callbackURL: '/' },
   });
   await db.update(user).set({ role: 'ADMIN', emailVerified: true }).where(eq(user.id, admin.id));
+  await ensurePermissions(db);
 
   // One example unclaimed device with a claim code printed once.
   const deviceId = randomUUID();
@@ -44,6 +46,7 @@ async function main() {
   console.log(
     `✓ Demo device created — claim code: ${claimCode} (shown once, distribute with the device)`,
   );
+  console.log(`✓ Permission rows ready (${PERMISSION_ROWS.length} unique paths for all roles)`);
 }
 
 async function run() {

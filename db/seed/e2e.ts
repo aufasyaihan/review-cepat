@@ -13,6 +13,7 @@ import {
   user,
 } from '../schema';
 import { closeDb, db } from '../seed-client';
+import { ensurePermissions } from './permissions';
 
 /**
  * Deterministic e2e fixtures for review_cepat_test. Idempotent — safe to run
@@ -153,6 +154,7 @@ async function ensureMember(
 
 async function main() {
   console.log('Seeding e2e fixtures (review_cepat_test)...');
+  await ensurePermissions(db);
 
   const admin = await ensureUser('admin@e2e.local', 'E2e-admin-123', 'E2E Admin', 'ADMIN');
   const merchant = await ensureUser(

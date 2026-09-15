@@ -30,10 +30,12 @@ Public device resolution (in the `(redirect)` group) — see [public-scan.md](pu
 ### auth
 
 - `me()` — current session + role + active organization(s) (guards UI).
-- `listNavForRole(role)` — sidebar items from `permission` rows where `is_menu=true`,
-  ordered by `sort` (FR-036/037).
-- `can(role, path)` — true when the role has a matching `permission` row; enforces
-  endpoint access in proxy.ts and `(dashboard)/layout.tsx` (FR-036).
+- `listNavForRole(role, orgRole)` — sidebar items from `permission` rows where
+  `is_menu=true`, ordered by `sort` (FR-036/037). `orgRole` (`owner`/`member`, null
+  for admin) distinguishes the MERCHANT role; owner-only rows are encoded as
+  `MERCHANT:owner` tokens in the `roles` array.
+- `can(role, orgRole, path)` — true when the role has a matching `permission` row;
+  enforces endpoint access in proxy.ts and `(dashboard)/layout.tsx` (FR-036).
 - (Better Auth client handles sign-in/sign-up/sign-out/session/org invitations.)
 
 ### merchant (organization + members)
