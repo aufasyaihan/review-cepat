@@ -3,7 +3,15 @@ import { createHash, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 import { auth } from '@/lib/auth';
-import { destination, device, merchantProfile, scanEvent, user } from '../schema';
+import {
+  destination,
+  device,
+  member,
+  merchantProfile,
+  organization,
+  scanEvent,
+  user,
+} from '../schema';
 import { closeDb, db } from '../seed-client';
 
 /**
@@ -59,11 +67,25 @@ async function ensureDevice(seed: {
   name: string;
   status: 'UNCLAIMED' | 'PUBLISHED';
   ownerId: number | null;
+  organizationId?: string;
+  memberId?: string | null;
   claimCode?: string;
   destinations?: Array<{ type: string; url: string; position: number }>;
 }): Promise<string> {
   const existing = await db.query.device.findFirst({ where: eq(device.slug, seed.slug) });
-  if (existing) return existing.id;
+  if (existing) {
+    await db
+      .update(device)
+      .set({
+        name: seed.name,
+        status: seed.status,
+        organizationId: seed.organizationId ?? null,
+        memberId: seed.memberId ?? null,
+        updatedAt: now,
+      })
+      .where(eq(device.id, existing.id));
+    return existing.id;
+  }
 
   const id = randomUUID();
   const claimCodeHash = seed.claimCode
@@ -75,6 +97,8 @@ async function ensureDevice(seed: {
     name: seed.name,
     status: seed.status,
     ownerId: seed.ownerId,
+    organizationId: seed.organizationId ?? null,
+    memberId: seed.memberId ?? null,
     claimCodeHash,
     createdAt: now,
     updatedAt: now,
@@ -96,6 +120,37 @@ async function ensureDevice(seed: {
   return id;
 }
 
+async function ensureOrg(id: string, name: string, slug: string): Promise<void> {
+  const existing = await db.query.organization.findFirst({ where: eq(organization.slug, slug) });
+  if (existing) return;
+  await db.insert(organization).values({
+    id,
+    name,
+    slug,
+    logo: null,
+    metadata: null,
+    createdAt: now,
+  });
+}
+
+async function ensureMember(
+  orgId: string,
+  userId: string,
+  role: 'owner' | 'member',
+): Promise<void> {
+  const existing = await db.query.member.findFirst({
+    where: (t, { and }) => and(eq(t.organizationId, orgId), eq(t.userId, userId)),
+  });
+  if (existing) return;
+  await db.insert(member).values({
+    id: randomUUID(),
+    organizationId: orgId,
+    userId,
+    role,
+    createdAt: now,
+  });
+}
+
 async function main() {
   console.log('Seeding e2e fixtures (review_cepat_test)...');
 
@@ -107,12 +162,22 @@ async function main() {
     'MERCHANT',
     'E2E Shop',
   );
+  const subMerchant = await ensureUser('sub@e2e.local', 'E2e-sub-123', 'E2E Sub', 'MERCHANT');
+
+  const ORG_ID = 'e2e-org';
+  await ensureOrg(ORG_ID, 'E2E Shop', 'e2e-shop');
+  await ensureMember(ORG_ID, merchant.userId, 'owner');
+  await ensureMember(ORG_ID, subMerchant.userId, 'member');
+  const subMemberRow = await db.query.member.findFirst({
+    where: (t, { and }) => and(eq(t.organizationId, ORG_ID), eq(t.userId, subMerchant.userId)),
+  });
 
   const pub = await ensureDevice({
     slug: 'demo-tag',
     name: 'Single Link Counter',
     status: 'PUBLISHED',
     ownerId: merchant.merchantId,
+    organizationId: ORG_ID,
     destinations: [{ type: 'WEBSITE', url: 'https://example.com', position: 0 }],
   });
 
@@ -121,6 +186,8 @@ async function main() {
     name: 'Multi Link Counter',
     status: 'PUBLISHED',
     ownerId: merchant.merchantId,
+    organizationId: ORG_ID,
+    memberId: subMemberRow?.id ?? null,
     destinations: [
       { type: 'INSTAGRAM', url: 'https://instagram.com/e2e', position: 0 },
       { type: 'WEBSITE', url: 'https://example.com', position: 1 },
@@ -140,7 +207,26 @@ async function main() {
     name: 'Claim Me Counter',
     status: 'UNCLAIMED',
     ownerId: null,
+    organizationId: ORG_ID,
     claimCode: 'E2ECLAIM1',
+  });
+
+  // Dedicated device for the register-with-code e2e (kept apart from E2ECLAIM1
+  // so the claim-flow spec and the register-flow spec never contend). Washed
+  // every run so the register spec always binds a fresh account.
+  const existingRegister = await db.query.device.findFirst({
+    where: eq(device.slug, 'e2e-register'),
+  });
+  if (existingRegister) {
+    await db.delete(device).where(eq(device.id, existingRegister.id));
+  }
+  await ensureDevice({
+    slug: 'e2e-register',
+    name: 'Register Target Counter',
+    status: 'UNCLAIMED',
+    ownerId: null,
+    organizationId: ORG_ID,
+    claimCode: 'E2EREGIC1',
   });
 
   // Deterministic scan events for analytics verification.
@@ -166,7 +252,8 @@ async function main() {
   }
 
   console.log(`  - admin: admin@e2e.local / E2e-admin-123`);
-  console.log(`  - merchant: merchant@e2e.local / E2e-merchant-123`);
+  console.log(`  - merchant (owner): merchant@e2e.local / E2e-merchant-123`);
+  console.log(`  - sub-merchant: sub@e2e.local / E2e-sub-123`);
   console.log(`  - claim code for /s/e2e-unclaimed: E2ECLAIM1`);
   void admin;
   console.log('E2E fixtures ready.');

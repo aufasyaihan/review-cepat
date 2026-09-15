@@ -64,6 +64,12 @@ describe('signInAction', () => {
     const result = await signInAction({ email: 'a@b.com', password: 'pass' });
     expect(result).toEqual({ ok: false, error: 'ratelimited' });
   });
+
+  it('fails with generic message when auth throws non-Error', async () => {
+    signInEmail().mockRejectedValueOnce('boom');
+    const result = await signInAction({ email: 'a@b.com', password: 'pass' });
+    expect(result).toEqual({ ok: false, error: 'Sign in failed' });
+  });
 });
 
 describe('signUpAction', () => {
@@ -120,6 +126,16 @@ describe('signUpAction', () => {
       password: '12345678',
     });
     expect(result).toEqual({ ok: false, error: 'Registration failed' });
+  });
+
+  it('fails with thrown error message', async () => {
+    signUpEmail().mockRejectedValueOnce(new Error('email taken'));
+    const result = await signUpAction({
+      name: 'John',
+      email: 'j@b.com',
+      password: '12345678',
+    });
+    expect(result).toEqual({ ok: false, error: 'email taken' });
   });
 });
 

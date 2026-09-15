@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { getActiveOrganization, type Membership } from '@/domains/merchant/server/permissions';
 import { getProfileByUserId } from '@/domains/merchant/server/service';
 import { auth, type Role } from '@/lib/auth';
 import { ForbiddenError, UnauthorizedError } from '@/lib/errors';
@@ -45,4 +46,20 @@ export async function requireApiMerchant(): Promise<{ user: SessionUser; merchan
   const profile = await getProfileByUserId(user.id);
   if (!profile) throw new ForbiddenError('NO_PROFILE', 'Merchant profile not set up');
   return { user, merchantId: profile.id };
+}
+
+/** Merchant-role API guard resolved to the active organization membership. */
+export async function requireApiMembership(): Promise<Membership> {
+  const user = await requireApiUser(['MERCHANT']);
+  const membership = await getActiveOrganization(user.id);
+  if (!membership) throw new ForbiddenError('NO_ORG', 'Not part of an organization');
+  return membership;
+}
+
+/** Page guard the resolves a merchant's membership or redirects to registration. */
+export async function requireMembership(): Promise<SessionUser & { membership: Membership }> {
+  const user = await requireRole('MERCHANT');
+  const membership = await getActiveOrganization(user.id);
+  if (!membership) redirect('/register');
+  return { ...user, membership };
 }

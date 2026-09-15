@@ -23,27 +23,63 @@
 - Q: Where must mutations and forms live? → A: Every `page.tsx` is a Server Component. All data mutations go through Server Actions (`'use server'`), never fetch-based route-handler mutations; every form is handled by TanStack Form submitting to a Server Action, and every mutation revalidates the affected TanStack Query cache keys on success.
 - Q: What happens after login? → A: Sign-in redirects to the correct area by role — admins land on `/admin`, merchants on `/dashboard` — after a successful Server Action sign-in; every action shows a toast (login, create device, etc.). The app header is not part of the root layout.
 
+### Session 2026-09-14
+
+- Q: What minimal info must the accountless setup page collect? → A: Claim code + destination URL only (zero-friction). Two-step setup: `/{id}/setup` (claim code) then `/{id}/setup/redirect` (choose single-link → Google Places search input that becomes the review redirect, or multiple-links → Google Places + custom URLs).
+- Q: How is the organization and role hierarchy structured? → A: Merchant is an organization using Better Auth's organization plugin. Roles: `owner` (reseller — full access to device management, dashboard, sub-merchant management) and `member` (sub-merchant — device management only). An owner can sell devices to other merchants who become members of the same organization.
+- Q: How should the accountless setup flow work end-to-end? → A: On initial device setup (unclaimed or reset), the merchant opens/ scans/ taps the NFC/QR URL and is redirected to `/{id}/setup`. They enter the claim code, then proceed to `/{id}/setup/redirect` to choose destination type. The device is set up without any account. If the merchant later wants dashboard access, they register using the claim code and the system creates an account linked to the device.
+- Q: How does a reseller sell a device to another merchant within the organization? → A: The reseller (owner) can add a sub-merchant (member) to the organization. The sub-merchant gains device management access for devices assigned to them. The reseller retains full dashboard visibility across all organization devices.
+- Q: Can a merchant register a device directly from the dashboard without going through the setup URL? → A: Yes. A reseller can register a device on the dashboard directly (input claim code + configure) without requiring a separate login step. The device is added to the reseller's organization.
+- Q: When a sub-merchant registers using a claim code and the device has no connected account, what is the organizational outcome? → A: The sub-merchant joins the reseller's organization as a `member`. The device is added to that organization and is available on both the sub-merchant's dashboard and the owner's dashboard, so the owner can manage it.
+- Q: How does a device become associated with a reseller's organization before any merchant claims it? → A: Admin assigns the device to the reseller's organization at creation/sale time; the device carries an `organizationId` from then on. Any later sub-merchant claim routes them into that organization.
+- Q: How is a device attached to a specific sub-merchant within the organization? → A: Devices are individually assigned to a specific sub-merchant (member) at reseller sale time, captured as a per-device member assignment. The sub-merchant sees only assigned devices; the owner sees all devices in the organization.
+- Q: Who can reset a device and what does it clear? → A: Two reset scopes: (1) the owner (reseller) can reset, clearing configuration and member assignment but keeping the organization binding; (2) the admin can reset, clearing everything including the organization binding back to unclaimed/admin-owned. Either reset regenerates a fresh claim code so the device can be set up again.
+- Q: Which component library must the UI be built with? → A: shadcn/ui, added via the CLI (`npx shadcn@latest add <component>`), configured to use Base UI (base-ui.com) primitives rather than Radix. Use shadcn components as much as possible — no hand-rolled replacements for standard primitives.
+- Q: What shell layout should authenticated areas use? → A: All authenticated areas (admin, reseller dashboard, sub-merchant dashboard) use the shadcn `sidebar` shell. Public/auth screens (login, register, device setup) use a centered card, with login/register centered on both x and y axes.
+- Q: When must toasts appear? → A: Every action or mutation surfaces a toast on success and on error — login, register, claim device, configure destination, publish/unpublish, assign device, reset, create device, transfer, etc.
+- Q: What visual style and primary color should the product use? → A: Minimalist yet enterprise: neutral whites/grays, restrained spacing and typography, and sky blue (Tailwind `sky` scale) as the primary color.
+- Q: How should loading states be handled on every page? → A: Every page with data loads shows a skeleton via Next.js `loading.tsx` or a client Suspense boundary per component. Skeletons use phantom-ui (`@aejkatappaja/phantom-ui`), a structure-aware skeleton Web Component enabled client-side that wraps the real component in `<phantom-ui loading>` and measures the DOM for shimmer blocks. The phantom-ui `init` command adds its SSR pre-hydration CSS and JSX type declarations.
+- Q: Where should theming apply? → A: Install next-themes and provide a theme provider on the login and dashboard areas only; the public redirect route (/s/[slug]) must not get the theme provider.
+
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Merchant claims and configures a device (Priority: P1)
+### User Story 1 - Accountless device setup via URL (Priority: P1)
 
-After registering an account, a merchant claims a physical NFC/QR device they purchased, configures its destination — either a single link (e.g. Google Reviews) or a multi-link page of social and website links — and publishes it so customers can scan it. The merchant can unpublish the device at any time.
+A merchant who has purchased a physical device opens, scans, or taps the device URL directly (no account required). The device URL routes to `/{id}/setup` where the merchant enters the claim code. On success they proceed to `/{id}/setup/redirect` to choose a destination type: single-link (opens a Google Places search input; the selected place becomes the redirect destination for reviews) or multiple-links (Google Places search plus custom URLs). After submitting, the device is fully set up and active.
 
-**Why this priority**: Configuration is what gives a device meaning. Until a merchant claims and configures a device, no customer can be redirected, so this journey unlocks every downstream value.
+**Why this priority**: This is the first interaction a merchant has with the platform and must work with zero prior account state. Getting this right determines whether the product is easy to sell and adopt.
 
-**Independent Test**: Can be fully tested by registering a merchant, claiming a device with a valid claim code, attaching destinations, publishing, and observing the device act as active — delivers the setup experience without any admin or analytics UI.
+**Independent Test**: Can be fully tested by navigating to an unclaimed device URL, entering a valid claim code, choosing single-link, selecting a Google Place, and verifying the device is active and redirects correctly on scan.
 
 **Acceptance Scenarios**:
 
-1. **Given** a registered merchant and an unclaimed device, **When** the merchant enters a valid claim code, **Then** the device becomes owned by the merchant.
-2. **Given** a claimed device with no destinations, **When** the merchant attaches a single destination URL and publishes, **Then** the device status is "published" and shows the configured destination.
-3. **Given** a published device, **When** the merchant unpublishes it, **Then** the device status changes to "unpublished" and it no longer resolves for customers.
-4. **Given** a merchant entering a claim code already used or invalid, **When** submission is attempted, **Then** a clear error is shown and no ownership change occurs.
-5. **Given** a published device, **When** the merchant edits its destinations, **Then** the new configuration takes effect for future scans.
+1. **Given** an unclaimed device, **When** a user opens the device URL, **Then** the `/{id}/setup` page renders asking for a claim code (no login required).
+2. **Given** a valid claim code entered on the setup page, **When** the user submits, **Then** they are redirected to `/{id}/setup/redirect` to choose a destination type.
+3. **Given** single-link chosen on the redirect page, **When** the user searches and selects a Google Place, **Then** the device is configured to redirect to that place's review page and the device becomes active.
+4. **Given** multiple-links chosen, **When** the user adds a Google Place and/or custom URLs, **Then** the device is configured with a multi-link page and becomes active.
+5. **Given** an invalid or already-claimed claim code entered, **When** submission is attempted, **Then** a clear error is shown and the user remains on the setup page.
 
 ---
 
-### User Story 2 - Customer scans a device and reaches its destination (Priority: P1)
+### User Story 2 - Merchant claims device from dashboard with account (Priority: P1)
+
+A logged-in merchant (reseller or sub-merchant) claims a device by entering a claim code from the dashboard. The merchant chooses to login or register: login associates the device with the existing account; register creates a new account if the device has no connected account. The device is then added to the merchant's organization.
+
+**Why this priority**: This covers the secondary claim path — when a merchant already has an account and wants to claim another device under the same organization.
+
+**Independent Test**: Can be fully tested by logging in, entering a claim code, and verifying the device appears in the merchant's device list with correct organization association.
+
+**Acceptance Scenarios**:
+
+1. **Given** a logged-in merchant, **When** the merchant enters a valid claim code from the dashboard, **Then** a choice between login or register is presented to associate the device with an account.
+2. **Given** the merchant chooses register and the device has no connected account, **When** registration completes, **Then** an account is created, the device is linked to it, and the merchant proceeds to destination setup.
+3. **Given** the merchant chooses login, **When** authentication succeeds, **Then** the device is registered to that account and the merchant proceeds to destination setup.
+4. **Given** a logged-in reseller, **When** the reseller registers a device directly from the dashboard, **Then** the device is added to the reseller's organization without requiring a separate login step.
+5. **Given** a valid claim code and destination configured, **When** submission completes, **Then** the device status becomes "published" and shows the configured destination.
+
+---
+
+### User Story 3 - Customer scans a device and reaches its destination (Priority: P1)
 
 A customer taps an NFC device with their phone or scans its QR code. For a single-link device they are redirected immediately to the destination; for a multi-link device they see a public landing page listing all links. Every scan is recorded automatically before the customer proceeds.
 
@@ -60,41 +96,60 @@ A customer taps an NFC device with their phone or scans its QR code. For a singl
 
 ---
 
-### User Story 3 - Admin manages devices and merchants (Priority: P2)
+### User Story 4 - Reseller manages devices, analytics, and sub-merchants (Priority: P2)
 
-An admin logs in, creates devices (generating a unique identity and claim code for each), manages the inventory, publishes or disables devices, and views merchant accounts.
+A reseller (organization owner) logs in and sees a dashboard with device management, scan analytics, and sub-merchant management. The reseller can view all devices across the organization, see analytics, and manage sub-merchants (members) who have device management access.
 
-**Why this priority**: It carries no customer-facing value by itself, but it produces the inventory merchants depend on, so it follows the two P1 journeys.
+**Why this priority**: The reseller dashboard is the control center for the organization's device fleet. It carries no customer-facing value by itself, but it produces the inventory and oversight merchants depend on.
 
-**Independent Test**: Can be fully tested by creating several devices, verifying each gets a distinct identity, disabling one, and listing the merchant accounts — delivers inventory management without customer-facing features.
+**Independent Test**: Can be fully tested by logging in as a reseller, viewing devices, analytics, and the sub-merchant list — delivers organizational management without customer-facing features.
+
+**Acceptance Scenarios**:
+
+1. **Given** a logged-in reseller, **When** the dashboard is opened, **Then** all devices in the organization are listed with their status and analytics.
+2. **Given** a reseller, **When** the analytics view is opened, **Then** total scans, per-device scans, daily scans, browser/device, location, referrer, and timestamps are displayed.
+3. **Given** a reseller, **When** the sub-merchant view is opened, **Then** a list of members in the organization is shown with their roles and assigned devices.
+4. **Given** a reseller, **When** a sub-merchant is invited or added, **Then** the new member is added to the organization with the `member` role and gains device management access.
+5. **Given** a reseller selling a device to a sub-merchant, **When** the reseller assigns the device to that member, **Then** the device becomes visible on both the member's dashboard and the owner's dashboard.
+
+---
+
+### User Story 5 - Sub-merchant manages devices (Priority: P2)
+
+A sub-merchant (organization member) logs in and sees a device management view. The sub-merchant can view and configure devices assigned to them but cannot see analytics or manage other members.
+
+**Why this priority**: Sub-merchants need to manage their assigned devices but have no organizational oversight responsibility.
+
+**Independent Test**: Can be fully tested by logging in as a sub-merchant, viewing assigned devices, and verifying that analytics and member management are not accessible.
+
+**Acceptance Scenarios**:
+
+1. **Given** a logged-in sub-merchant, **When** the device list is opened, **Then** only devices assigned to this sub-merchant are shown.
+2. **Given** a sub-merchant, **When** attempting to access analytics or member management, **Then** access is denied or the views are not shown.
+3. **Given** a sub-merchant, **When** editing a device's destination, **Then** the changes apply to future scans.
+4. **Given** a device assigned to a sub-merchant, **When** the owner (reseller) opens the dashboard, **Then** the owner can also view and manage that device.
+
+---
+
+### User Story 6 - Admin manages devices and merchants (Priority: P2)
+
+An admin logs in, creates devices (generating a unique identity and claim code for each), assigns devices to reseller organizations, manages the inventory, publishes or disables devices, and views merchant organizations.
+
+**Why this priority**: It carries no customer-facing value by itself, but it produces the inventory merchants depend on, so it follows the P1 journeys.
+
+**Independent Test**: Can be fully tested by creating several devices, verifying each gets a distinct identity, assigning one to a reseller organization, disabling one, and listing merchant organizations — delivers inventory management without customer-facing features.
 
 **Acceptance Scenarios**:
 
 1. **Given** a logged-in admin, **When** the admin creates a device, **Then** a unique device identity and a claim code are generated.
 2. **Given** two devices created at the same time, **When** compared, **Then** their identities are distinct.
 3. **Given** a device inventory list, **When** the admin disables a device, **Then** it is marked disabled and cannot be scanned to a destination.
-4. **Given** an administered platform, **When** the admin opens the merchants view, **Then** a list of registered merchants and their devices is shown.
+4. **Given** an administered platform, **When** the admin opens the merchants view, **Then** a list of merchant organizations and their devices is shown.
+5. **Given** a logged-in admin creating a device for a reseller, **When** the admin assigns the device to the reseller's organization, **Then** the device carries that `organizationId` from then on.
 
 ---
 
-### User Story 4 - Merchant views scan analytics (Priority: P2)
-
-A merchant opens their analytics view and sees metrics for their devices: total scans, scans per day, per-device scans, browser/device type, country/city when available, referrer, and the latest scan times.
-
-**Why this priority**: Analytics is a stated core feature that drives merchant adoption, but destinations work without it, so it ranks below the redirect journeys.
-
-**Independent Test**: Can be fully tested by scanning a device several times from different browsers and verifying the counts and breakdowns appear in the merchant view.
-
-**Acceptance Scenarios**:
-
-1. **Given** a merchant with scanned devices, **When** the analytics view is opened, **Then** total scans and per-device scan counts are displayed.
-2. **Given** scans occurring on different days, **When** the daily view is opened, **Then** scan counts are grouped by day.
-3. **Given** a scan with known browser, device, country, city, and referrer data, **When** its details are shown, **Then** each attribute is displayed when available.
-4. **Given** a scan with no location data available, **When** its details are shown, **Then** the location is shown as unavailable without failing.
-
----
-
-### User Story 5 - Merchant attaches a Google review destination (Priority: P2)
+### User Story 7 - Merchant attaches a Google review destination (Priority: P2)
 
 A merchant searches for a business via Google Places, selects the matching listing, and attaches it to a device. The review destination is stored by business reference and the review link is generated automatically so customers can be directed straight to that business's reviews.
 
@@ -111,7 +166,7 @@ A merchant searches for a business via Google Places, selects the matching listi
 
 ---
 
-### User Story 6 - Visitor views the marketing homepage (Priority: P2)
+### User Story 8 - Visitor views the marketing homepage (Priority: P2)
 
 A first-time visitor opens the platform's public homepage and immediately understands what the platform does from its branding content, can be found via search engines, and can reach merchant registration or login from the page.
 
@@ -136,40 +191,59 @@ A first-time visitor opens the platform's public homepage and immediately unders
 - Unknown or malformed device identity in a scan request.
 - Scan requests with missing browser, location, or referrer data.
 - Repeated/concurrent scans of the same device within a short window.
-- A merchant transferring a device to another merchant account.
+- A reseller transferring a device to another organization or sub-merchant.
 - Google Places searches returning no matches or the merchant choosing none.
 - A single-link destination URL that is invalid or unreachable at configuration time.
-- A device whose merchant account is deactivated while the device is published.
+- A device whose organization account is deactivated while the device is published.
+- A claim code used simultaneously from the accountless setup flow and the dashboard flow (claim code is single-use; the first validator wins, others receive an error).
+- A sub-merchant entering a claim code for a device bound to a different organization.
+- An owner removing the last sub-merchant from an organization (Better Auth last-owner protection).
+- Resetting a device that is currently published (reset unpublishes it and requires re-setup via the fresh claim code).
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST allow merchants to register an account.
+- **FR-001**: The system MUST allow merchants to register an account using a claim code (no pre-existing account required for initial device setup).
 - **FR-002**: The system MUST allow admins to log in with elevated privileges.
 - **FR-003**: The system MUST allow admins to create devices and MUST generate a unique device identity and a claim code for each device.
-- **FR-004**: The system MUST allow a merchant to claim a device using a valid claim code and MUST reject invalid, expired, or already-used codes with a clear message.
-- **FR-005**: The system MUST allow a merchant to configure a device with a single destination link or multiple destination links.
-- **FR-006**: The system MUST support these destination types: Google review, Instagram, Facebook, TikTok, WhatsApp, website, and custom URL.
-- **FR-007**: The system MUST allow a merchant to publish and unpublish their devices at any time.
-- **FR-008**: The system MUST allow a device to be activated, disabled, or transferred to another merchant account.
-- **FR-009**: The system MUST allow a merchant to search businesses via Google Places, select a listing, store its reference, and generate the review link automatically.
-- **FR-010**: When a customer scans a device configured with a single link, the system MUST forward them to the destination immediately.
-- **FR-011**: When a customer scans a device configured with multiple links, the system MUST show a public landing page listing all links.
-- **FR-012**: The system MUST record a scan event, including outcome, source, and timestamp, before redirecting or showing the landing page.
-- **FR-013**: The system MUST record for each scan: browser/device type, country/city when available, and referrer.
-- **FR-014**: The system MUST show merchants analytics for total scans, daily scans, per-device scans, browser/device type, country/city, referrer, and timestamps.
-- **FR-015**: The system MUST show a clear inactive message instead of redirecting for unpublished, disabled, unclaimed, or destination-less devices.
-- **FR-016**: The system MUST validate destination URLs when they are configured and inform the merchant of invalid values.
-- **FR-017**: The system MUST list registered merchants and their devices for admins.
-- **FR-018**: The system MUST serve a public marketing homepage at the site root presenting product branding and linking to merchant registration and login.
-- **FR-019**: The homepage MUST be server-rendered, expose SEO metadata (title, description, canonical URL, Open Graph), and the site MUST expose robots directives and a sitemap for public pages.
+- **FR-026**: When an admin creates a device, the system MUST allow the admin to assign the device to a reseller's organization at creation/sale time, binding the device's `organizationId` from then on.
+- **FR-004**: The system MUST allow accountless device setup via the device URL: `/{id}/setup` (claim code input) then `/{id}/setup/redirect` (destination type selection — single-link via Google Places search, or multiple-links via Google Places + custom URLs). No login is required.
+- **FR-005**: The system MUST allow a merchant to claim a device using a valid claim code from the dashboard, presenting a login-or-register choice to associate the device with an account.
+- **FR-006**: The system MUST allow a merchant to configure a device with a single destination link or multiple destination links.
+- **FR-007**: The system MUST support these destination types: Google review, Instagram, Facebook, TikTok, WhatsApp, website, and custom URL.
+- **FR-008**: The system MUST allow a merchant to publish and unpublish their devices at any time.
+- **FR-009**: The system MUST allow a device to be activated, disabled, or transferred to another organization account.
+- **FR-010**: The system MUST allow a merchant to search businesses via Google Places, select a listing, store its reference, and generate the review link automatically.
+- **FR-011**: When a customer scans a device configured with a single link, the system MUST forward them to the destination immediately.
+- **FR-012**: When a customer scans a device configured with multiple links, the system MUST show a public landing page listing all links.
+- **FR-013**: The system MUST record a scan event, including outcome, source, and timestamp, before redirecting or showing the landing page.
+- **FR-014**: The system MUST record for each scan: browser/device type, country/city when available, and referrer.
+- **FR-015**: The system MUST show merchants analytics for total scans, daily scans, per-device scans, browser/device type, country/city, referrer, and timestamps.
+- **FR-016**: The system MUST show a clear inactive message instead of redirecting for unpublished, disabled, unclaimed, or destination-less devices.
+- **FR-017**: The system MUST validate destination URLs when they are configured and inform the merchant of invalid values.
+- **FR-018**: The system MUST list registered merchant organizations and their devices for admins.
+- **FR-019**: The system MUST serve a public marketing homepage at the site root presenting product branding and linking to merchant registration and login.
+- **FR-020**: The homepage MUST be server-rendered, expose SEO metadata (title, description, canonical URL, Open Graph), and the site MUST expose robots directives and a sitemap for public pages.
+- **FR-021**: The system MUST integrate Better Auth's organization plugin. Each merchant is an organization. The `owner` role (reseller) has full access: device management, dashboard analytics, and sub-merchant management. The `member` role (sub-merchant) has device management only.
+- **FR-022**: The system MUST allow a reseller (owner) to add sub-merchants (members) to the organization. Sub-merchants gain device management access for assigned devices.
+- **FR-023**: The system MUST allow a reseller to register a device directly from the dashboard without a separate login step, adding it to the reseller's organization.
+- **FR-024**: The system MUST allow a sub-merchant to register using a claim code; if the device has no connected account, the system MUST create an account, add the sub-merchant to the device's organization as a `member`, and link the device to that organization.
+- **FR-025**: Devices assigned to a sub-merchant MUST be visible and manageable on both the sub-merchant's dashboard and the owner's (reseller's) dashboard.
+- **FR-027**: The system MUST allow a reseller to individually assign a device to a specific sub-merchant (member) at sale time; the sub-merchant sees only assigned devices, while the owner sees all devices in the organization.
+- **FR-028**: The system MUST allow two device reset scopes: (1) the owner (reseller) may reset a device, clearing its configuration and member assignment but keeping the `organizationId` binding; (2) the admin may reset a device, clearing everything including the organization binding back to unclaimed/admin-owned. Either reset MUST rotate to a fresh claim code so the device can be set up again.
+- **FR-029**: The UI MUST be built with shadcn/ui components added via the CLI (`npx shadcn@latest add <component>`), using Base UI primitives, and MUST use shadcn components wherever a standard primitive exists.
+- **FR-030**: Authenticated areas (admin, reseller dashboard, sub-merchant dashboard) MUST use the shadcn `sidebar` shell layout. Public and auth screens (login, register, device setup) MUST use a centered card layout, with login/register centered on both the x and y axes.
+- **FR-031**: Every action or mutation (login, register, claim device, configure destination, publish/unpublish, assign device, reset, create device, transfer) MUST surface a toast on both success and error.
+- **FR-032**: The product MUST use a minimalist, enterprise visual style — neutral whites/grays, restrained spacing and typography — with sky blue (Tailwind `sky` scale) as the primary color.
+- **FR-033**: Every page that loads data MUST show a skeleton loading state via Next.js `loading.tsx` or a client Suspense boundary per component, using phantom-ui (`@aejkatappaja/phantom-ui`) to generate structure-aware shimmer placeholders, and MUST NOT block hydration on the skeleton.
+- **FR-034**: The system MUST provide a light/dark theme via next-themes on the login and dashboard areas only; the public redirect route (`/s/[slug]`) MUST NOT include the theme provider.
 
 ### Key Entities *(include if feature involves data)*
 
-- **Device**: Represents a physical NFC tag or QR code with a unique identity, a claim code, ownership, configuration, and a lifecycle status (unclaimed, claimed, published, unpublished, disabled, transferred).
-- **Merchant**: A registered business account that owns devices, configures destinations, and views analytics.
-- **Admin**: A privileged account that creates devices, manages inventory, and oversees merchants.
+- **Organization (Merchant)**: A Better Auth organization representing a merchant business. Contains an owner (reseller) and members (sub-merchants). Owns devices and configurations. Uses Better Auth's organization plugin with `owner` and `member` roles.
+- **Device**: Represents a physical NFC tag or QR code with a unique identity, a claim code, organization ownership (`organizationId` bound at admin creation/sale), an optional per-device member assignment (sub-merchant), a configuration, and a lifecycle status (unclaimed, claimed, published, unpublished, disabled, transferred).
+- **Admin**: A privileged account that creates devices, manages inventory, and oversees merchant organizations.
 - **Destination**: A single configured redirect target or one entry in a multi-link page, typed as Google review, Instagram, Facebook, TikTok, WhatsApp, website, or custom URL.
 - **Scan Event**: A recorded interaction on a device capturing outcome, source, browser/device, location when available, referrer, and timestamp.
 - **Place**: A Google Places business listing referenced by a destination to generate a review link.
@@ -179,21 +253,27 @@ A first-time visitor opens the platform's public homepage and immediately unders
 ### Measurable Outcomes
 
 - **SC-001**: A customer scanning a single-link device reaches the destination in under 2 seconds on a standard mobile connection.
-- **SC-002**: A merchant can register, claim a device, configure a destination, and publish it in under 5 minutes.
+- **SC-002**: A merchant can complete accountless device setup (open URL → enter claim code → choose destination → active device) in under 2 minutes.
 - **SC-003**: 100% of successful redirects and landing-page views have a corresponding recorded scan event.
 - **SC-004**: Scans that occur for a merchant's published devices appear in that merchant's analytics.
 - **SC-005**: Unpublished, disabled, unclaimed, and destination-less devices never forward a customer to a destination.
-- **SC-006**: The MVP is complete when an admin can create devices, a merchant can claim and configure them, and customers can successfully scan devices and reach configured destinations with analytics recorded.
+- **SC-006**: The MVP is complete when an admin can create devices, a merchant can claim and configure them (accountless or via dashboard), and customers can successfully scan devices and reach configured destinations with analytics recorded.
 - **SC-007**: A first-time visitor reaches a rendered, responsive homepage on mobile or desktop in under 2 seconds on a standard mobile connection, and the homepage carries machine-readable SEO metadata.
+- **SC-008**: A sub-merchant can view and manage only their assigned devices; analytics and member management are not accessible.
+- **SC-009**: 100% of pages that load data render a phantom-ui skeleton loading state (via `loading.tsx` or a per-component client Suspense boundary) while data is pending, and 100% of actions surface a toast on success and error.
+- **SC-010**: Login and register screens are centered on both axes in any viewport, authenticated areas render the sidebar shell, and the theme provider is present on login and dashboard pages but absent from the public redirect route.
 
 ## Assumptions
 
 - Device purchase happens outside the platform (no catalog, cart, or payment). Claim codes are distributed through the physical device packaging or another offline channel.
 - No billing, plans, or subscription management is included in the MVP.
 - A device holds one active configuration at a time; the merchant can edit it and changes apply to future scans.
-- A transfer moves device ownership between two merchant accounts.
+- A transfer moves device ownership between two organizations.
 - Location (country/city) is derived from each scan and is best-effort; it may be unavailable for some scans.
 - Google Places search requires an external service credential with usage limits; review-link generation uses the stored business reference.
 - NFC taps open the device URL in the customer's phone browser via the device's built-in behavior (no native app required).
 - Public pages must work on mobile browsers, meet WCAG AA accessibility, and be locatable by search engines. No native mobile apps are shipped in the MVP.
 - The marketing homepage is a single public page at the site root; no separate marketing route group or additional marketing pages (features, pricing, legal) are part of the MVP.
+- Better Auth's organization plugin handles the merchant hierarchy: `owner` = reseller (full access), `member` = sub-merchant (device management only). Custom roles may be added via dynamic access control if needed.
+- phantom-ui (`@aejkatappaja/phantom-ui`) is a client-side Web Component; it needs the phantom-ui `init` one-time setup (SSR pre-hydration CSS import and JSX type declaration) and is imported on the client only. It is a deliberate user-mandated dependency alongside shadcn/ui (Base UI) and next-themes.
+- The public redirect route (`/s/[slug]`) renders with no theme provider and no authenticated layout; it stays a fast, plain, server-rendered redirect surface.

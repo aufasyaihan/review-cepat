@@ -4,6 +4,7 @@ const dbMocks = vi.hoisted(() => ({
   innerJoin: vi.fn().mockResolvedValue([]),
   groupBy: vi.fn().mockResolvedValue([]),
   merchantFindFirst: vi.fn().mockResolvedValue(null),
+  organizationFindMany: vi.fn().mockResolvedValue([]),
   updateWhere: vi.fn().mockResolvedValue(undefined),
   insertValues: vi.fn().mockResolvedValue(undefined),
 }));
@@ -12,6 +13,7 @@ vi.mock('@/db', () => {
   const db = {
     query: {
       merchantProfile: { findFirst: dbMocks.merchantFindFirst },
+      organization: { findMany: dbMocks.organizationFindMany },
     },
     update: () => ({ set: () => ({ where: dbMocks.updateWhere }) }),
     insert: () => ({ values: dbMocks.insertValues }),
@@ -19,6 +21,7 @@ vi.mock('@/db', () => {
       from: () => ({
         innerJoin: dbMocks.innerJoin,
         groupBy: dbMocks.groupBy,
+        where: () => ({ groupBy: dbMocks.groupBy }),
       }),
     }),
   };
@@ -28,6 +31,7 @@ vi.mock('@/db', () => {
 import {
   getProfileByUserId,
   listMerchants,
+  listOrganizations,
   upsertProfile,
 } from '@/domains/merchant/server/service';
 
@@ -36,6 +40,7 @@ beforeEach(() => {
   dbMocks.merchantFindFirst.mockResolvedValue(null);
   dbMocks.innerJoin.mockResolvedValue([]);
   dbMocks.groupBy.mockResolvedValue([]);
+  dbMocks.organizationFindMany.mockResolvedValue([]);
 });
 describe('upsertProfile', () => {
   it('inserts when no existing profile', async () => {
@@ -160,5 +165,36 @@ describe('listMerchants', () => {
 
     const result = await listMerchants();
     expect(result[0].deviceCount).toBe(0);
+  });
+});
+
+describe('listOrganizations', () => {
+  it('merges organizations with device counts', async () => {
+    dbMocks.organizationFindMany.mockResolvedValueOnce([
+      { id: 'org-1', name: 'Org One', slug: 'org-one' },
+      { id: 'org-2', name: 'Org Two', slug: 'org-two' },
+    ]);
+    dbMocks.groupBy.mockResolvedValueOnce([{ organizationId: 'org-1', cnt: 4 }]);
+
+    const result = await listOrganizations();
+    expect(result).toEqual([
+      { id: 'org-1', name: 'Org One', slug: 'org-one', deviceCount: 4 },
+      { id: 'org-2', name: 'Org Two', slug: 'org-two', deviceCount: 0 },
+    ]);
+  });
+
+  it('ignores null organizationId in counts', async () => {
+    dbMocks.organizationFindMany.mockResolvedValueOnce([
+      { id: 'org-1', name: 'Org One', slug: 'org-one' },
+    ]);
+    dbMocks.groupBy.mockResolvedValueOnce([{ organizationId: null, cnt: 9 }]);
+
+    const result = await listOrganizations();
+    expect(result[0].deviceCount).toBe(0);
+  });
+
+  it('returns empty list when there are no organizations', async () => {
+    const result = await listOrganizations();
+    expect(result).toEqual([]);
   });
 });

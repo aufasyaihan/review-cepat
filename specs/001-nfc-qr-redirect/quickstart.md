@@ -1,90 +1,114 @@
 # Quickstart — Validation Guide
 
-Runnable end-to-end validation for the NFC QR Redirect MVP. Contract details in
-[contracts/](contracts/) and data rules in [data-model.md](data-model.md); this file
-only tells you how to prove the feature works.
+Runnable end-to-end validation for the NFC QR Redirect MVP (organization model +
+accountless setup). Contract details in [contracts/](contracts/) and data rules in
+[data-model.md](data-model.md); this file only tells you how to prove the feature works.
 
 ## Prerequisites
 
 - Node.js 22 LTS, npm
 - MySQL 8.x reachable, `mysql://` connection string
 - Google Places API credential (server-side only)
-- Env configured from `.env.example`: DB, auth secret, Places key
+- Env configured from `.env.example`: DB, auth secret (including organization plugin
+  env, e.g. `BETTER_AUTH_SECRET`), Places key
 
 ## Setup
 
 ```bash
 npm ci
-npm run db:generate        # squash schema -> migrations (already committed; idempotent)
-npm run db:migrate         # apply migrations to MySQL
-npm run db:seed            # create an ADMIN account + example unclaimed device
-npm run dev                # start app (http://localhost:3000)
+npx @better-auth/cli migrate        # org plugin tables (organization/member/invitation)
+npm run db:generate                 # squash schema -> migrations (already committed)
+npm run db:migrate                  # apply migrations to MySQL
+npm run db:seed                     # ADMIN + a reseller org (owner) + sub-merchant + devices
+npm run dev                         # start app (http://localhost:3000)
+```
+
+One-time UI setup (per spec FR-029/033/034):
+
+```bash
+npx shadcn@latest init --base-color sky   # shadcn on Base UI primitives, sky primary
+npx shadcn@latest add sidebar toast skeleton ...
+npx @aejkatappaja/phantom-ui init         # SSR pre-hydration CSS + JSX types
+npm i next-themes
 ```
 
 CI runs: `npm run lint`, `npm run typecheck`, `npm run test`, `npm run coverage`
-(≥90%), `npm run build`. E2E: `npx playwright test`.
+(Vitest, ≥90%), `npm run build`. E2E: `npx playwright test`.
 
 ## Validation scenarios
 
 ### Scenario 1 — Homepage (branding + SEO)
 
 1. Open `http://localhost:3000/` logged out.
-2. **Expect**: branding/landing page renders responsively (check at 390px width);
-   page source contains `title`, `description`, canonical, and Open Graph metadata;
-   `robots.txt` and `sitemap.xml` exist and list public pages; register link leads to
-   `/register`.
+2. **Expect**: branding/landing page renders responsively (390px); source contains
+   title, description, canonical, Open Graph; `robots.txt`/`sitemap.xml` exist; register
+   link leads to `/register`.
 
-### Scenario 2 — Admin creates a device
+### Scenario 2 — Admin creates a device and binds it to a reseller org
 
-1. Log in as ADMIN, go to devices → new.
-2. **Expect**: device appears in inventory with a unique `slug` and a one-time claim
-   code (code shown once, never stored plaintext).
+1. Log in as ADMIN (sidebar shell, toasts on every action — both expect to fire).
+2. Devices → new; create a device and **assign it to the reseller organization**.
+3. **Expect**: device appears with a unique `slug` and a one-time-visible claim code
+   (hash-only stored); `organizationId` bound on the row.
 
-### Scenario 3 — Merchant claims + configures + publishes
+### Scenario 3 — Accountless setup: scan → claim code → redirect type (FR-004)
 
-1. Register a MERCHANT, open claim and enter the device's claim code.
-2. **Expect**: device is owned; editing destinations accepts a single link, a multi
-   link set, and a Google review flow:
-   - search a place → results shown → select → review URL generated automatically.
-3. Publish.
-4. **Expect**: status `PUBLISHED`; an invalid/foreign claim code shows a clear error
-   and changes nothing.
+1. Open `http://localhost:3000/<slug>/setup` logged out — no account, no login wall.
+2. Enter the device's claim code → forwarded to `/<slug>/setup/redirect`.
+3. Choose **single-link**: search a Google Place, select it, submit.
+4. **Expect**: device status `CLAIMED` with a `GOOGLE_REVIEW` destination; success
+   toast; no `boundUserId` yet. Skeleton loading appeared during navigation
+   (`loading.tsx`/Suspense + phantom-ui).
 
 ### Scenario 4 — Public scan: single link
 
-1. Open `http://localhost:3000/s/<slug>` of the single-link published device.
-2. **Expect**: 3xx redirect straight to the destination (devtools: no intermediate
-   page); a `scan_event` with `outcome = REDIRECTED` exists with browser/device
-   populated; referrer captured when present.
+1. Publish the device, open `/s/<slug>`.
+2. **Expect**: 3xx redirect straight to the derived review URL; a `scan_event` with
+   `outcome = REDIRECTED`, browser/device populated, referrer when present.
 
-### Scenario 5 — Public scan: multi link
+### Scenario 5 — Public scan: multi link + inactive
 
-1. Open `http://localhost:3000/s/<slug>` of a multi-link published device.
-2. **Expect**: server-rendered landing page listing all active links in order;
-   `scan_event` with `outcome = LANDING_SHOWN`; each link navigable; page is WCAG AA
-   (tab through links) and responsive.
+1. Set up a second device with multiple links → `/s/<slug>` shows the landing page
+   listing links in `position` order (`LANDING_SHOWN`); WCAG AA (tab through).
+2. Unclaim/disable/unpublish a device → `/s/<slug>` returns an inactive message (200,
+   never forwarded), `outcome = INACTIVE`. Unknown slug → 404.
 
-### Scenario 6 — Inactive states
+### Scenario 6 — Sub-merchant registers with a claim code (FR-024)
 
-For devices that are UNCLAIMED, CLAIMED-but-not-published, UNPUBLISHED, or DISABLED:
-1. Open `/s/<slug>`.
-2. **Expect**: inactive message page (HTTP 200, never forwarded), `outcome = INACTIVE`.
-3. For an unknown slug: **Expect** 404.
+1. Register a brand-new user using the setup device's claim code.
+2. **Expect**: account created; user auto-joined the reseller org as `member`;
+   `device.boundUserId` set; device visible on the sub-merchant's dashboard.
+3. Try reusing the code to register another account → rejected ("already linked").
 
-### Scenario 7 — Merchant analytics
+### Scenario 7 — Reseller dashboard: analytics + member management + reset (FR-021/022)
 
-1. Generate scans across days with different browsers.
-2. Open merchant analytics.
-3. **Expect**: total scans, daily counts, per-device counts, browser/device/country/
-   city/referrer breakdowns match; scans with no geo data show location unavailable
-   without erroring.
+1. Log in as the owner. **Expect**: sees all org devices (including the sub-merchant's);
+   analytics view (totals, daily, per-device, browser/device/country/city/referrer);
+   members view with roles and assigned devices. Auth pages and dashboards are sidebar +
+   next-themes themed; dark mode toggle works (FR-034).
+2. Owner **resets** the sub-merchant's device → destinations cleared, org KEPT, fresh
+   claim code, re-setup required.
+3. **Admin resets** the same device → `organizationId` also cleared (unclaimed/admin-
+   owned), fresh claim code.
 
-### Playwright coverage
+### Scenario 8 — Sub-merchant isolation (SC-008)
 
-- Happy path: admin → merchant → scan → analytics (scenarios 2–5, 7).
-- Failure paths: invalid claim (3), inactive scan (6).
+1. As the sub-merchant, open dashboard. **Expect**: only assigned devices listed;
+   analytics and members views are not accessible (redirect/denied).
+
+### Scenario 9 — Dashboard claim with login-or-register (FR-005)
+
+1. Logged in as the owner, claim a second device via claim code from the dashboard.
+2. **Expect**: device added to the reseller's org without a separate login step (toast).
+
+## Playwright coverage
+
+- Happy path: admin create+bind → accountless setup → scan → owner analytics
+  (scenarios 2–4, 7).
+- Org flows: sub-merchant register-with-code, isolation, reset scopes, multi-path
+  claim (scenarios 5–9).
 
 ## Done when
 
-Scenarios 1–7 pass locally with `npm run coverage` ≥ 90% and `npx playwright test`
-green — this is the same suite CI runs on push/PR.
+Scenarios 1–9 pass locally with `npm run coverage` ≥ 90% and `npx playwright test`
+green — the same suite CI runs on push/PR.

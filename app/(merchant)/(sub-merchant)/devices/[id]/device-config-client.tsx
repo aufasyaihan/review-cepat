@@ -102,6 +102,10 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
           <a className="underline" href={`/s/${device.slug}`}>
             /s/{device.slug}
           </a>
+          {' · '}
+          <Link className="underline" href={`/devices/${device.id}/settings`}>
+            Settings
+          </Link>
         </p>
       </header>
 
