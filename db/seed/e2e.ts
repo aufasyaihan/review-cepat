@@ -231,6 +231,21 @@ async function main() {
     claimCode: 'E2EREGIC1',
   });
 
+  const existingOrgClaim = await db.query.device.findFirst({
+    where: eq(device.slug, 'e2e-org-claim'),
+  });
+  if (existingOrgClaim) {
+    await db.delete(device).where(eq(device.id, existingOrgClaim.id));
+  }
+  await ensureDevice({
+    slug: 'e2e-org-claim',
+    name: 'Org Claim Counter',
+    status: 'UNCLAIMED',
+    ownerId: null,
+    organizationId: ORG_ID,
+    claimCode: 'E2EORGIC1',
+  });
+
   // Deterministic scan events for analytics verification.
   const existingScans = await db.query.scanEvent.findMany({ limit: 1 });
   if (existingScans.length === 0) {
