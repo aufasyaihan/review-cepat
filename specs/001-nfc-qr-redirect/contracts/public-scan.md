@@ -1,12 +1,11 @@
 # Contracts — Public Scan Resolution
 
 External contract for the single public URL encoded on every physical device
-(NFC tag / QR code). Full data rules in [data-model.md](../data-model.md) and
-`specs/001-nfc-qr-redirect/data-model.md`.
+(NFC tag / QR code). Full data rules in [data-model.md](../data-model.md).
 
 ## GET /s/[slug]
 
-Resolves a device by its immutable `slug` (see `device.slug` in data model).
+Resolves a device by its immutable `slug` (see `device.slug` in the data model).
 
 ### Resolution logic
 
@@ -41,30 +40,31 @@ Resolves a device by its immutable `slug` (see `device.slug` in data model).
 - Locale/count fields are best-effort and may be absent without failing the response.
 - Unpublished/disabled devices are never forwarded (spec FR-015, SC-005).
 
+### Theming / execution
+
+- This route is in the `(redirect)` route group: **no next-themes provider** and no
+  authenticated layout (FR-034), keeping it a fast, plain, server-rendered surface.
+
 ### Error handling for the public device route
 
 - Occupied `slug` is prevented at device creation (unique constraint).
 - A device whose single destination was later deactivated renders INACTIVE — it never
   redirects to an empty or null URL.
 
-### Rate / abuse surface (T051)
+### Rate / abuse surface
 
-`/s/[slug]` is the only unauthenticated, unrate-limited public route in the system:
+`/s/[slug]` is the only unauthenticated, unrate-limited public route with side effects:
 
-- **Every hit inserts a `scan_event` row before responding** (including NOT_FOUND? No —
-  unknown slugs 404 via `notFound()` before recording; only resolved devices record).
-  Attackers can only inflate analytics for *published* devices; they cannot create rows
-  for unknown slugs.
+- **Every hit inserts a `scan_event` row before responding** (unknown slugs 404 via
+  `notFound()` before recording; only resolved devices record).
 - **Better Auth rate limiting does not apply**: `auth.api` rate limits cover auth
-  endpoints only (`lib/auth.ts`). This route has no limiter.
+  endpoints only. This route has no limiter.
 - **Abuse vectors**: (1) analytics inflation — repeated hits on a PUBLISHED single-link
-  device; (2) resource exhaustion — issuing many concurrent requests to force MySQL
-  insert load; (3) bulk candidate-slug probing for device enumeration (slow, guess-
-  dependent, low value: slugs expose no PII).
-- **Current mitigations**: server-side-only IP hashing (no raw IP stored —
-  `ipHash` SHA-256), single serial query/insert per request, `createdAt` index allows
-  cheap cleanup, and written volume is bounded by physical device placement in normal
-  operation.
+  device; (2) resource exhaustion — many concurrent requests forcing MySQL insert load;
+  (3) bulk candidate-slug probing (slow, low value: slugs expose no PII).
+- **Current mitigations**: server-side-only IP hashing (`ipHash` SHA-256), single
+  serial query/insert per request, `createdAt` index for cheap cleanup, written volume
+  bounded by physical device placement in normal operation.
 - **Known ceilings / upgrade path** (`ponytail:` note): no application-level rate limit
   on this route. If abuse is observed, add per-IP or per-slug token-bucket limiting in
   the domain service or middleware before the route, and/or cap `scan_event` retention

@@ -1,16 +1,33 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { betterAuth } from 'better-auth';
 import { nextCookies } from 'better-auth/next-js';
+import { organization } from 'better-auth/plugins';
 
 import { getDb } from '@/db';
-import { account, session, user, verification } from '@/db/schema';
+import {
+  account,
+  invitation,
+  member,
+  organization as organizationTable,
+  session,
+  user,
+  verification,
+} from '@/db/schema';
 
 export type Role = 'ADMIN' | 'MERCHANT';
 
 export const auth = betterAuth({
   database: drizzleAdapter(getDb(), {
     provider: 'mysql',
-    schema: { user, session, account, verification },
+    schema: {
+      user,
+      session,
+      account,
+      verification,
+      organization: organizationTable,
+      member,
+      invitation,
+    },
   }),
   emailAndPassword: { enabled: true },
   rateLimit: {
@@ -42,5 +59,11 @@ export const auth = betterAuth({
   },
   // Must be the last plugin: sets session cookies when auth APIs are called
   // from Server Actions (signIn/signUp/signOut).
-  plugins: [nextCookies()],
+  plugins: [
+    organization({
+      allowUserToCreateOrganization: true,
+      organizationLimit: 10,
+    }),
+    nextCookies(),
+  ],
 });

@@ -17,13 +17,25 @@ vi.mock('@/lib/auth', () => ({
 vi.mock('@/domains/merchant/server/service', () => ({
   getProfileByUserId: vi.fn(),
 }));
+vi.mock('@/domains/merchant/server/permissions', () => ({
+  getActiveOrganization: vi.fn(),
+}));
 
+import { getActiveOrganization } from '@/domains/merchant/server/permissions';
 import { getProfileByUserId } from '@/domains/merchant/server/service';
 import { auth } from '@/lib/auth';
-import { getSession, requireApiMerchant, requireApiUser, requireRole } from '@/lib/session';
+import {
+  getSession,
+  requireApiMembership,
+  requireApiMerchant,
+  requireApiUser,
+  requireMembership,
+  requireRole,
+} from '@/lib/session';
 
 const getSessionMock = vi.mocked(auth.api.getSession);
 const getProfileMock = vi.mocked(getProfileByUserId);
+const getOrgMock = vi.mocked(getActiveOrganization);
 
 type SessionResult = Awaited<ReturnType<typeof auth.api.getSession>>;
 
@@ -132,6 +144,40 @@ describe('lib/session', () => {
       const result = await requireApiMerchant();
       expect(result.user.id).toBe('u1');
       expect(result.merchantId).toBe(42);
+    });
+  });
+
+  describe('requireApiMembership', () => {
+    it('throws ForbiddenError when the user has no organization', async () => {
+      getSessionMock.mockResolvedValueOnce(sessionUser({}));
+      getOrgMock.mockResolvedValueOnce(null);
+      await expect(requireApiMembership()).rejects.toMatchObject({
+        status: 403,
+        code: 'NO_ORG',
+      });
+    });
+
+    it('returns the active membership on success', async () => {
+      getSessionMock.mockResolvedValueOnce(sessionUser({}));
+      getOrgMock.mockResolvedValueOnce({ id: 'm1', organizationId: 'org-1', role: 'owner' });
+      const membership = await requireApiMembership();
+      expect(membership.organizationId).toBe('org-1');
+    });
+  });
+
+  describe('requireMembership', () => {
+    it('redirects to /register when the merchant has no organization', async () => {
+      getSessionMock.mockResolvedValueOnce(sessionUser({}));
+      getOrgMock.mockResolvedValueOnce(null);
+      await expect(requireMembership()).rejects.toThrow('REDIRECT:/register');
+    });
+
+    it('returns the user plus membership', async () => {
+      getSessionMock.mockResolvedValueOnce(sessionUser({}));
+      getOrgMock.mockResolvedValueOnce({ id: 'm1', organizationId: 'org-1', role: 'member' });
+      const result = await requireMembership();
+      expect(result.id).toBe('u1');
+      expect(result.membership.role).toBe('member');
     });
   });
 });

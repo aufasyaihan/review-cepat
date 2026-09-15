@@ -1,19 +1,26 @@
 'use client';
 
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
+import { analyticsQueries } from '@/domains/analytics/api/queries';
 import { deviceQueries } from '@/domains/device/api/queries';
 import { merchantQueries } from '@/domains/merchant/api/queries';
 
-export function DashboardClient({ userName }: { userName: string }) {
+export function DashboardClient({ userName, isOwner }: { userName: string; isOwner: boolean }) {
   const { data: devices } = useSuspenseQuery(deviceQueries.list());
   const { data: profile } = useSuspenseQuery({
     ...merchantQueries.profile(),
     retry: false,
   });
+  const { data: analytics } = useQuery({
+    ...analyticsQueries.overview(),
+    enabled: isOwner,
+    retry: false,
+  });
 
   const published = devices.filter((d) => d.status === 'PUBLISHED').length;
+  const totalScans = analytics?.totalScans ?? 0;
 
   return (
     <div className="space-y-8">
@@ -32,7 +39,11 @@ export function DashboardClient({ userName }: { userName: string }) {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Devices" value={devices.length} />
         <StatCard label="Published" value={published} />
-        <StatCard label="Scans" value="View analytics" />
+        {isOwner ? (
+          <StatCard label="Scans" value={totalScans} />
+        ) : (
+          <StatCard label="My devices" value={devices.length} />
+        )}
       </div>
 
       <nav className="flex flex-wrap gap-3">
@@ -42,9 +53,16 @@ export function DashboardClient({ userName }: { userName: string }) {
         <Link href="/devices/claim" className="rounded border px-4 py-2 hover:bg-muted">
           Claim a device
         </Link>
-        <Link href="/analytics" className="rounded border px-4 py-2 hover:bg-muted">
-          Analytics
-        </Link>
+        {isOwner && (
+          <>
+            <Link href="/analytics" className="rounded border px-4 py-2 hover:bg-muted">
+              Analytics
+            </Link>
+            <Link href="/members" className="rounded border px-4 py-2 hover:bg-muted">
+              Members
+            </Link>
+          </>
+        )}
       </nav>
     </div>
   );

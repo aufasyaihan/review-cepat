@@ -40,4 +40,9 @@ describe('lib/ua', () => {
     const ua = 'Mozilla/5.0 (X11; Linux x86_64) Chromium/120.0';
     expect(parseUserAgent(ua)).toEqual({ browser: 'Chromium', deviceType: 'desktop' });
   });
+
+  it('leaves browser null when no known token matches', () => {
+    const ua = 'SomeCustomBot/1.0 (+https://example.com/bot)';
+    expect(parseUserAgent(ua)).toEqual({ browser: null, deviceType: 'desktop' });
+  });
 });

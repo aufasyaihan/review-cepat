@@ -33,3 +33,4 @@
 
 - Named external services (Google Places) and accessibility standard (WCAG AA) come directly from the feature brief and are treated as domain requirements, not implementation choices.
 - No clarification markers were needed; all unspecified details were resolved via documented reasonable defaults in Assumptions.
+- shadcn/ui (Base UI primitives, added via CLI), phantom-ui (`@aejkatappaja/phantom-ui`), next-themes, and the Tailwind sky-blue primary are explicit user-mandated design directives, so naming them in the spec is a requirement, not an implementation leak.

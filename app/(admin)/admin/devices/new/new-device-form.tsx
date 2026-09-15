@@ -4,18 +4,24 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { adminKeys } from '@/domains/admin/api/queries';
 import { createDeviceAction } from '@/domains/device/server/actions';
+import type { OrganizationWithDevices } from '@/domains/merchant/server/service';
 import { useAction } from '@/hooks/use-action';
 
-export function NewDeviceForm() {
+export function NewDeviceForm({ organizations }: { organizations: OrganizationWithDevices[] }) {
   const router = useRouter();
   const [name, setName] = useState('');
+  const [orgId, setOrgId] = useState('');
   const [result, setResult] = useState<{ slug: string; claimCode: string } | null>(null);
 
-  const create = useAction(createDeviceAction, {
-    successMsg: 'Device created',
-    keys: [adminKeys.devices()],
-    onSuccess: (res) => setResult({ slug: res.device.slug, claimCode: res.claimCode }),
-  });
+  const create = useAction(
+    (args: { name: string; organizationId?: string }) =>
+      createDeviceAction(args.name, args.organizationId),
+    {
+      successMsg: 'Device created',
+      keys: [adminKeys.devices()],
+      onSuccess: (res) => setResult({ slug: res.device.slug, claimCode: res.claimCode }),
+    },
+  );
 
   if (result) {
     return (
@@ -43,7 +49,7 @@ export function NewDeviceForm() {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        create.mutate(name);
+        create.mutate({ name, organizationId: orgId || undefined });
       }}
       className="mt-6 space-y-4"
     >
@@ -56,6 +62,24 @@ export function NewDeviceForm() {
           className="mt-1 w-full rounded border px-3 py-2"
         />
       </label>
+
+      <label className="block text-sm">
+        Assign to reseller organization (optional)
+        <select
+          value={orgId}
+          onChange={(e) => setOrgId(e.target.value)}
+          className="mt-1 w-full rounded border px-3 py-2 text-sm"
+          aria-label="Reseller organization"
+        >
+          <option value="">No organization — assign later</option>
+          {organizations.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name} ({o.deviceCount} device{o.deviceCount === 1 ? '' : 's'})
+            </option>
+          ))}
+        </select>
+      </label>
+
       {create.isError && (
         <p role="alert" className="text-sm text-red-600">
           Creation failed
