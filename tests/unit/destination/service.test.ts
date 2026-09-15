@@ -24,7 +24,12 @@ vi.mock('@/db', () => {
 
 import { getDb } from '@/db';
 import { deriveReviewUrl } from '@/domains/destination/constants';
-import { listForDevice, searchPlaces, setForDevice } from '@/domains/destination/server/service';
+import {
+  listForDevice,
+  searchPlaces,
+  setForDevice,
+  setForDeviceSetup,
+} from '@/domains/destination/server/service';
 
 type MockFn = ReturnType<typeof vi.fn>;
 
@@ -45,6 +50,7 @@ function q<K extends keyof MockDb['query']>(table: K): MockDb['query'][K] {
   return (getDb() as unknown as MockDb).query[table];
 }
 
+const membership = { id: 'm1', organizationId: 'org-1', role: 'owner' } as const;
 const now = new Date('2025-06-01T00:00:00Z');
 const deviceRow = (overrides: Record<string, unknown> = {}) => ({
   id: 'dev-1',
@@ -89,22 +95,36 @@ describe('destination service', () => {
   // --- setForDevice ---
   describe('setForDevice', () => {
     it('throws ZodError on invalid input', async () => {
-      await expect(setForDevice('dev-1', 7, {})).rejects.toThrow();
+      await expect(setForDevice('dev-1', membership, {})).rejects.toThrow();
     });
 
     it('throws 404 when device not owned', async () => {
       q('device').findFirst.mockResolvedValueOnce(null);
       await expect(
-        setForDevice('dev-1', 7, {
+        setForDevice('dev-1', membership, {
           destinations: [{ type: 'WEBSITE', url: 'https://a.com', position: 0 }],
         }),
       ).rejects.toMatchObject({ status: 404 });
     });
 
+    it('allows a member to set destinations on their assigned device', async () => {
+      const memberMembership = { id: 'm1', organizationId: 'org-1', role: 'member' } as const;
+      q('device').findFirst.mockResolvedValueOnce({
+        ...deviceRow(),
+        organizationId: 'org-1',
+        memberId: 'm1',
+      });
+      q('destination').findMany.mockResolvedValueOnce([destRow()]);
+      const result = await setForDevice('dev-1', memberMembership, {
+        destinations: [{ type: 'WEBSITE', url: 'https://a.com', position: 0, active: true }],
+      });
+      expect(result).toHaveLength(1);
+    });
+
     it('deletes old destinations and inserts new ones (replace)', async () => {
       q('device').findFirst.mockResolvedValueOnce(deviceRow());
       q('destination').findMany.mockResolvedValueOnce([destRow()]);
-      const result = await setForDevice('dev-1', 7, {
+      const result = await setForDevice('dev-1', membership, {
         destinations: [{ type: 'WEBSITE', url: 'https://a.com', position: 0, active: true }],
       });
       expect(result).toHaveLength(1);
@@ -119,7 +139,7 @@ describe('destination service', () => {
       q('destination').findMany.mockResolvedValueOnce([
         destRow({ type: 'GOOGLE_REVIEW', placeId: 'place-1', url: deriveReviewUrl('ChIJ_X') }),
       ]);
-      const result = await setForDevice('dev-1', 7, {
+      const result = await setForDevice('dev-1', membership, {
         destinations: [{ type: 'GOOGLE_REVIEW', placeId: 'ChIJ_X', position: 0, active: true }],
       });
       expect(result).toHaveLength(1);
@@ -132,7 +152,7 @@ describe('destination service', () => {
       q('destination').findMany.mockResolvedValueOnce([
         destRow({ type: 'GOOGLE_REVIEW', placeId: 'place-existing' }),
       ]);
-      const result = await setForDevice('dev-1', 7, {
+      const result = await setForDevice('dev-1', membership, {
         destinations: [{ type: 'GOOGLE_REVIEW', placeId: 'ChIJ_Y', position: 0, active: true }],
       });
       expect(result).toHaveLength(1);
@@ -141,7 +161,7 @@ describe('destination service', () => {
     it('returns empty result list when nothing remains after delete', async () => {
       q('device').findFirst.mockResolvedValueOnce(deviceRow());
       q('destination').findMany.mockResolvedValueOnce([]);
-      const result = await setForDevice('dev-1', 7, {
+      const result = await setForDevice('dev-1', membership, {
         destinations: [{ type: 'WEBSITE', url: 'https://a.com', position: 0, active: true }],
       });
       expect(result).toEqual([]);
@@ -152,10 +172,49 @@ describe('destination service', () => {
       // lookup misses, then the post-insert refetch also misses
       q('place').findFirst.mockResolvedValue(null);
       await expect(
-        setForDevice('dev-1', 7, {
+        setForDevice('dev-1', membership, {
           destinations: [{ type: 'GOOGLE_REVIEW', placeId: 'ChIJ_Z', position: 0, active: true }],
         }),
       ).rejects.toMatchObject({ status: 500, code: 'PLACE_CREATE_FAILED' });
+    });
+  });
+
+  // --- setForDeviceSetup ---
+  describe('setForDeviceSetup', () => {
+    it('throws 404 when device not found', async () => {
+      q('device').findFirst.mockResolvedValueOnce(null);
+      await expect(
+        setForDeviceSetup('dev-1', {
+          destinations: [{ type: 'WEBSITE', url: 'https://a.com', position: 0, active: true }],
+        }),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('throws 409 when device is disabled', async () => {
+      q('device').findFirst.mockResolvedValueOnce(deviceRow({ status: 'DISABLED' }));
+      await expect(
+        setForDeviceSetup('dev-1', {
+          destinations: [{ type: 'WEBSITE', url: 'https://a.com', position: 0, active: true }],
+        }),
+      ).rejects.toMatchObject({ status: 409, code: 'DEVICE_DISABLED' });
+    });
+
+    it('marks the device CLAIMED when destinations are saved', async () => {
+      q('device').findFirst.mockResolvedValueOnce(deviceRow({ status: 'UNCLAIMED' }));
+      q('destination').findMany.mockResolvedValueOnce([destRow()]);
+      const result = await setForDeviceSetup('dev-1', {
+        destinations: [{ type: 'WEBSITE', url: 'https://a.com', position: 0, active: true }],
+      });
+      expect(result).toHaveLength(1);
+    });
+
+    it('does not touch device status when no destinations remain', async () => {
+      q('device').findFirst.mockResolvedValueOnce(deviceRow({ status: 'UNCLAIMED' }));
+      q('destination').findMany.mockResolvedValueOnce([]);
+      const result = await setForDeviceSetup('dev-1', {
+        destinations: [{ type: 'WEBSITE', url: 'https://a.com', position: 0, active: true }],
+      });
+      expect(result).toEqual([]);
     });
   });
 

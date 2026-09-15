@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/lib/session', () => ({
-  requireApiMerchant: vi
-    .fn()
-    .mockResolvedValue({ user: { id: 'u1', role: 'MERCHANT' }, merchantId: 7 }),
+  requireApiMembership: vi.fn().mockResolvedValue({
+    id: 'm1',
+    organizationId: 'org-1',
+    role: 'owner',
+  }),
 }));
 vi.mock('@/domains/destination/server/service', () => ({
   setForDevice: vi.fn(),

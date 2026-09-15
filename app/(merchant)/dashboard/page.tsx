@@ -1,28 +1,31 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
+
+import { analyticsQueries } from '@/domains/analytics/api/queries';
 import { deviceKeys } from '@/domains/device/api/queries';
-import { listOwned } from '@/domains/device/server/service';
-import { getProfileByUserId } from '@/domains/merchant/server/service';
+import { listVisible } from '@/domains/device/server/service';
+import { isOwner } from '@/domains/merchant/server/permissions';
 import { getQueryClient } from '@/lib/query-client';
-import { requireRole } from '@/lib/session';
+import { requireMembership } from '@/lib/session';
 import { DashboardClient } from './dashboard-client';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const user = await requireRole('MERCHANT');
+  const session = await requireMembership();
   const queryClient = getQueryClient();
 
   await queryClient.prefetchQuery({
     queryKey: deviceKeys.lists(),
-    queryFn: async () => {
-      const profile = await getProfileByUserId(user.id);
-      return profile ? listOwned(profile.id) : [];
-    },
+    queryFn: () => listVisible(session.membership),
   });
+
+  if (isOwner(session.membership)) {
+    await queryClient.prefetchQuery(analyticsQueries.overview());
+  }
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <DashboardClient userName={user.name} />
+      <DashboardClient userName={session.name} isOwner={isOwner(session.membership)} />
     </HydrationBoundary>
   );
 }

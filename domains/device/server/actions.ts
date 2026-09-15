@@ -7,9 +7,19 @@ import {
   transferDeviceSchema,
 } from '@/domains/device/schemas';
 import type { CreateDeviceResult, DeviceSummary } from '@/domains/device/types';
+import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permissions';
+import { claimWithCode } from '@/domains/merchant/server/service';
 import { type ActionResult, fail, ok } from '@/lib/action-result';
-import { requireApiMerchant, requireApiUser } from '@/lib/session';
-import { adminCreate, adminSetDisabled, claim, publish, transfer, unpublish } from './service';
+import { requireApiMembership, requireApiMerchant, requireApiUser } from '@/lib/session';
+import {
+  adminCreate,
+  adminReset,
+  adminSetDisabled,
+  ownerReset,
+  publishVisible,
+  transfer,
+  unpublishVisible,
+} from './service';
 
 function toMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Operation failed';
@@ -17,10 +27,13 @@ function toMessage(err: unknown): string {
 
 export async function claimDeviceAction(claimCode: string): Promise<ActionResult<DeviceSummary>> {
   try {
-    const { merchantId } = await requireApiMerchant();
+    const user = await requireApiUser(['MERCHANT']);
+    const membership = await getActiveOrganization(user.id);
+    if (!membership) return fail('Not part of an organization yet');
+
     const parsed = claimDeviceSchema.safeParse({ claimCode });
     if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid claim code');
-    const device = await claim(merchantId, parsed.data);
+    const device = await claimWithCode(user.id, membership, parsed.data.claimCode);
     revalidatePath('/devices');
     revalidatePath(`/devices/${device.id}`);
     return ok(device);
@@ -31,8 +44,8 @@ export async function claimDeviceAction(claimCode: string): Promise<ActionResult
 
 export async function publishDeviceAction(id: string): Promise<ActionResult<DeviceSummary>> {
   try {
-    const { merchantId } = await requireApiMerchant();
-    const device = await publish(id, merchantId);
+    const membership = await requireApiMembership();
+    const device = await publishVisible(id, membership);
     revalidatePath('/devices');
     revalidatePath(`/devices/${id}`);
     return ok(device);
@@ -43,8 +56,8 @@ export async function publishDeviceAction(id: string): Promise<ActionResult<Devi
 
 export async function unpublishDeviceAction(id: string): Promise<ActionResult<DeviceSummary>> {
   try {
-    const { merchantId } = await requireApiMerchant();
-    const device = await unpublish(id, merchantId);
+    const membership = await requireApiMembership();
+    const device = await unpublishVisible(id, membership);
     revalidatePath('/devices');
     revalidatePath(`/devices/${id}`);
     return ok(device);
@@ -69,10 +82,16 @@ export async function transferDeviceAction(
   }
 }
 
-export async function createDeviceAction(name: string): Promise<ActionResult<CreateDeviceResult>> {
+export async function createDeviceAction(
+  name: string,
+  organizationId?: string,
+): Promise<ActionResult<CreateDeviceResult>> {
   try {
     await requireApiUser(['ADMIN']);
-    const parsed = createDeviceSchema.safeParse({ name });
+    const parsed = createDeviceSchema.safeParse({
+      name,
+      organizationId: organizationId ?? undefined,
+    });
     if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid device name');
     const result = await adminCreate(parsed.data);
     revalidatePath('/admin/devices');
@@ -91,6 +110,33 @@ export async function setDeviceDisabledAction(
     const device = await adminSetDisabled(id, disabled);
     revalidatePath('/admin/devices');
     return ok(device);
+  } catch (err) {
+    return fail(toMessage(err));
+  }
+}
+
+/** Reset a device: owner scope (keeps org) or admin scope (clears org). FR-028. */
+export async function resetDeviceAction(
+  id: string,
+  scope: 'owner' | 'admin',
+): Promise<ActionResult<{ device: DeviceSummary; claimCode: string }>> {
+  try {
+    if (scope === 'admin') {
+      await requireApiUser(['ADMIN']);
+      const result = await adminReset(id);
+      revalidatePath('/admin/devices');
+      return ok(result);
+    }
+
+    const user = await requireApiUser(['MERCHANT']);
+    const membership = await getActiveOrganization(user.id);
+    if (!membership || !isOwner(membership)) {
+      return fail('Only an organization owner can reset this device');
+    }
+    const result = await ownerReset(id, membership.organizationId);
+    revalidatePath('/devices');
+    revalidatePath(`/devices/${id}`);
+    return ok(result);
   } catch (err) {
     return fail(toMessage(err));
   }

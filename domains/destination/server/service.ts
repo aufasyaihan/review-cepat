@@ -6,6 +6,7 @@ import { destination, device, place } from '@/db/schema';
 import { deriveReviewUrl } from '@/domains/destination/constants';
 import { type DestinationInput, setDestinationsSchema } from '@/domains/destination/schemas';
 import type { DestinationDto } from '@/domains/device/types';
+import type { Membership } from '@/domains/merchant/server/permissions';
 import { AppError } from '@/lib/errors';
 
 function toDto(row: {
@@ -28,9 +29,13 @@ function toDto(row: {
   };
 }
 
-async function assertOwned(deviceId: string, ownerId: number): Promise<void> {
+async function assertVisible(deviceId: string, membership: Membership): Promise<void> {
   const row = await getDb().query.device.findFirst({
-    where: and(eq(device.id, deviceId), eq(device.ownerId, ownerId)),
+    where: and(
+      eq(device.id, deviceId),
+      eq(device.organizationId, membership.organizationId),
+      membership.role === 'member' ? eq(device.memberId, membership.id) : undefined,
+    ),
   });
   if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
 }
@@ -64,12 +69,41 @@ async function resolvePlace(
 /** Atomically replaces a device's destination list (single or multi-link). */
 export async function setForDevice(
   deviceId: string,
-  ownerId: number,
+  membership: Membership,
   input: unknown,
 ): Promise<DestinationDto[]> {
+  await assertVisible(deviceId, membership);
+  return persistDestinations(deviceId, input);
+}
+
+/**
+ * Accountless variant used by /{slug}/setup/redirect (FR-004): no owner/account
+ * is required, but the device must exist and not be disabled, and a valid setup
+ * token must have been verified by the caller action.
+ */
+export async function setForDeviceSetup(
+  deviceId: string,
+  input: unknown,
+): Promise<DestinationDto[]> {
+  const db = getDb();
+  const row = await db.query.device.findFirst({ where: eq(device.id, deviceId) });
+  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
+  if (row.status === 'DISABLED')
+    throw new AppError(409, 'DEVICE_DISABLED', 'Disabled devices cannot be configured');
+
+  const result = await persistDestinations(deviceId, input);
+  if (result.length > 0) {
+    await db
+      .update(device)
+      .set({ status: 'CLAIMED', updatedAt: new Date() })
+      .where(eq(device.id, deviceId));
+  }
+  return result;
+}
+
+async function persistDestinations(deviceId: string, input: unknown): Promise<DestinationDto[]> {
   const { destinations } = setDestinationsSchema.parse(input);
   const db = getDb();
-  await assertOwned(deviceId, ownerId);
   const now = new Date();
 
   const resolved = await Promise.all(
@@ -91,9 +125,7 @@ export async function setForDevice(
   );
 
   await db.delete(destination).where(eq(destination.deviceId, deviceId));
-  if (resolved.length > 0) {
-    await db.insert(destination).values(resolved);
-  }
+  await db.insert(destination).values(resolved);
 
   const rows = await db.query.destination.findMany({
     where: eq(destination.deviceId, deviceId),

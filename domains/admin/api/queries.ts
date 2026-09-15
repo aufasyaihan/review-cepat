@@ -1,12 +1,15 @@
 import type { DeviceSummary } from '@/domains/device/types';
-import type { MerchantWithDevices } from '@/domains/merchant/server/service';
+import type {
+  MerchantWithDevices,
+  OrganizationWithDevices,
+} from '@/domains/merchant/server/service';
 import { api } from '@/lib/http';
 
 export const adminKeys = {
   all: ['admin'] as const,
   devices: () => [...adminKeys.all, 'devices'] as const,
   merchants: () => [...adminKeys.all, 'merchants'] as const,
-  newlyCreated: () => [...adminKeys.all, 'new'] as const,
+  organizations: () => [...adminKeys.all, 'organizations'] as const,
 };
 
 export const adminQueries = {
@@ -17,6 +20,10 @@ export const adminQueries = {
   merchants: () => ({
     queryKey: adminKeys.merchants(),
     queryFn: () => api.get<MerchantWithDevices[]>('/api/admin/merchants').send(),
+  }),
+  organizations: () => ({
+    queryKey: adminKeys.organizations(),
+    queryFn: () => api.get<OrganizationWithDevices[]>('/api/admin/organizations').send(),
   }),
 };
 

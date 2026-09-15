@@ -51,4 +51,11 @@ describe('profileSchema', () => {
     expect(r.data.phone).toBeUndefined();
     expect(r.data.country).toBeUndefined();
   });
+
+  it('treats empty phone and country as undefined', () => {
+    const r = profileSchema.safeParse({ businessName: 'B', phone: '', country: '' });
+    if (!r.success) throw new Error('expected success');
+    expect(r.data.phone).toBeUndefined();
+    expect(r.data.country).toBeUndefined();
+  });
 });

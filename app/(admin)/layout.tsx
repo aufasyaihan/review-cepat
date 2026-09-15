@@ -1,32 +1,26 @@
-import Link from 'next/link';
-
-import { AppHeader } from '@/components/layout/app-header';
+import { AppShell } from '@/components/layout/app-shell';
 import { requireRole } from '@/lib/session';
+import { ThemeWrap } from '@/providers/theme-wrap';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_LINKS = [
+const NAV = [
   { href: '/admin', label: 'Overview' },
   { href: '/admin/devices', label: 'Devices' },
   { href: '/admin/devices/new', label: 'New device' },
   { href: '/admin/merchants', label: 'Merchants' },
+  { href: '/admin/organizations', label: 'Organizations' },
 ];
 
-/** Admin group layout — ADMIN guard + admin navigation. */
+/** Admin group layout — ADMIN guard + sidebar shell. */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requireRole(['ADMIN']);
+  const user = await requireRole('ADMIN');
 
   return (
-    <div className="space-y-6">
-      <AppHeader />
-      <nav className="flex flex-wrap gap-2 text-sm" aria-label="Admin sections">
-        {ADMIN_LINKS.map((l) => (
-          <Link key={l.href} href={l.href} className="rounded border px-3 py-1.5 hover:bg-muted">
-            {l.label}
-          </Link>
-        ))}
-      </nav>
-      {children}
-    </div>
+    <ThemeWrap>
+      <AppShell nav={NAV} userName={user.name} accessRole="admin">
+        {children}
+      </AppShell>
+    </ThemeWrap>
   );
 }

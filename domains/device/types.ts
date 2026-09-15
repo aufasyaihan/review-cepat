@@ -6,6 +6,7 @@ export type DeviceSummary = {
   name: string;
   status: DeviceStatus;
   createdAt: string;
+  memberId?: string | null;
 };
 
 export type DestinationDto = {

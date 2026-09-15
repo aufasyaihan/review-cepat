@@ -34,6 +34,10 @@ export const session = mysqlTable('session', {
   userId: varchar('user_id', { length: 36 })
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
+  activeOrganizationId: varchar('active_organization_id', { length: 36 }).references(
+    () => organization.id,
+    { onDelete: 'set null' },
+  ),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
 });
@@ -66,6 +70,52 @@ export const verification = mysqlTable('verification', {
 });
 
 // ---------------------------------------------------------------------------
+// Better Auth organization plugin tables (merchant = organization)
+// ---------------------------------------------------------------------------
+
+export const organization = mysqlTable('organization', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
+  logo: text('logo'),
+  metadata: text('metadata'),
+  createdAt: timestamp('created_at').notNull(),
+});
+
+export const member = mysqlTable(
+  'member',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    organizationId: varchar('organization_id', { length: 36 })
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: varchar('user_id', { length: 36 })
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: varchar('role', { length: 255 }).notNull(),
+    createdAt: timestamp('created_at').notNull(),
+  },
+  (table) => [uniqueIndex('member_org_user_idx').on(table.organizationId, table.userId)],
+);
+
+export const invitation = mysqlTable(
+  'invitation',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    organizationId: varchar('organization_id', { length: 36 })
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    email: varchar('email', { length: 255 }).notNull(),
+    role: varchar('role', { length: 255 }).notNull(),
+    status: varchar('status', { length: 255 }).notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    inviterId: varchar('inviter_id', { length: 36 }).notNull(),
+    createdAt: timestamp('created_at').notNull(),
+  },
+  (table) => [index('invitation_org_idx').on(table.organizationId)],
+);
+
+// ---------------------------------------------------------------------------
 // Domain tables
 // ---------------------------------------------------------------------------
 
@@ -92,11 +142,24 @@ export const device = mysqlTable(
     ownerId: int('owner_id').references(() => merchantProfile.id, {
       onDelete: 'set null',
     }),
+    organizationId: varchar('organization_id', { length: 36 }).references(() => organization.id, {
+      onDelete: 'set null',
+    }),
+    memberId: varchar('member_id', { length: 36 }).references(() => member.id, {
+      onDelete: 'set null',
+    }),
+    boundUserId: varchar('bound_user_id', { length: 36 }).references(() => user.id, {
+      onDelete: 'set null',
+    }),
     claimCodeHash: varchar('claim_code_hash', { length: 64 }).notNull().unique(),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
   },
-  (table) => [index('device_owner_idx').on(table.ownerId)],
+  (table) => [
+    index('device_owner_idx').on(table.ownerId),
+    index('device_org_idx').on(table.organizationId),
+    index('device_member_idx').on(table.memberId),
+  ],
 );
 
 export const place = mysqlTable(

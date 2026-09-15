@@ -3,7 +3,10 @@ import {
   account,
   destination,
   device,
+  invitation,
+  member,
   merchantProfile,
+  organization,
   place,
   scanEvent,
   session,
@@ -17,6 +20,7 @@ export const userRelations = relations(user, ({ one, many }) => ({
     fields: [user.id],
     references: [merchantProfile.userId],
   }),
+  memberships: many(member),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -32,10 +36,42 @@ export const merchantProfileRelations = relations(merchantProfile, ({ one, many 
   devices: many(device),
 }));
 
+export const organizationRelations = relations(organization, ({ many }) => ({
+  members: many(member),
+  invitations: many(invitation),
+}));
+
+export const memberRelations = relations(member, ({ one }) => ({
+  organization: one(organization, {
+    fields: [member.organizationId],
+    references: [organization.id],
+  }),
+  user: one(user, { fields: [member.userId], references: [user.id] }),
+}));
+
+export const invitationRelations = relations(invitation, ({ one }) => ({
+  organization: one(organization, {
+    fields: [invitation.organizationId],
+    references: [organization.id],
+  }),
+}));
+
 export const deviceRelations = relations(device, ({ one, many }) => ({
   owner: one(merchantProfile, {
     fields: [device.ownerId],
     references: [merchantProfile.id],
+  }),
+  organization: one(organization, {
+    fields: [device.organizationId],
+    references: [organization.id],
+  }),
+  assignedMember: one(member, {
+    fields: [device.memberId],
+    references: [member.id],
+  }),
+  boundUser: one(user, {
+    fields: [device.boundUserId],
+    references: [user.id],
   }),
   destinations: many(destination),
   scanEvents: many(scanEvent),

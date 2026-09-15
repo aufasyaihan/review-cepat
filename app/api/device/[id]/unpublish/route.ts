@@ -1,9 +1,9 @@
-import { unpublish } from '@/domains/device/server/service';
+import { unpublishVisible } from '@/domains/device/server/service';
 import { apiRoute } from '@/lib/api';
-import { requireApiMerchant } from '@/lib/session';
+import { requireApiMembership } from '@/lib/session';
 
 export const POST = apiRoute('POST', '/api/device/[id]/unpublish', async (_req, ctx) => {
-  const { merchantId } = await requireApiMerchant();
+  const membership = await requireApiMembership();
   const { id } = await ctx.params;
-  return unpublish(id, merchantId);
+  return unpublishVisible(id, membership);
 });
