@@ -1,5 +1,6 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { notFound, redirect } from 'next/navigation';
+
 import { deviceKeys } from '@/domains/device/api/queries';
 import { listVisible } from '@/domains/device/server/service';
 import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permissions';
@@ -18,7 +19,7 @@ export default async function MemberDetailPage({
   const { memberId } = await params;
   const user = await requireRole('MERCHANT');
   const membership = await getActiveOrganization(user.id);
-  if (!membership || !isOwner(membership)) redirect('/members');
+  if (!membership || !isOwner(membership)) redirect('/user-management');
 
   const members = await listMembers(membership.organizationId);
   const member = members.find((m) => m.id === memberId) as MemberWithUser | undefined;

@@ -42,7 +42,7 @@ export async function inviteMemberAction(input: unknown): Promise<ActionResult<v
         organizationId: membership.organizationId,
       },
     });
-    revalidatePath('/members');
+    revalidatePath('/user-management');
     return ok(undefined);
   } catch (err) {
     return fail(err instanceof Error ? err.message : 'Could not send invitation');
@@ -60,7 +60,7 @@ export async function assignDeviceAction(
   try {
     await assignDevice(deviceId, memberId, membership.organizationId);
     revalidatePath('/devices');
-    revalidatePath('/members');
+    revalidatePath('/user-management');
     return ok(undefined);
   } catch (err) {
     return fail(err instanceof Error ? err.message : 'Could not assign device');
@@ -74,7 +74,7 @@ export async function unassignDeviceAction(deviceId: string): Promise<ActionResu
   try {
     await unassignDevice(deviceId, membership.organizationId);
     revalidatePath('/devices');
-    revalidatePath('/members');
+    revalidatePath('/user-management');
     return ok(undefined);
   } catch (err) {
     return fail(err instanceof Error ? err.message : 'Could not unassign device');

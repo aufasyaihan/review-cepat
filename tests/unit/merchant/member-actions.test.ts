@@ -50,7 +50,7 @@ describe('member actions (owner-gated)', () => {
     expect(inviteMember).toHaveBeenCalledWith({
       body: { email: 'new@x.com', role: 'member', organizationId: 'org-1' },
     });
-    expect(revalidatePath).toHaveBeenCalledWith('/members');
+    expect(revalidatePath).toHaveBeenCalledWith('/user-management');
   });
 
   it('rejects an invalid invite payload', async () => {

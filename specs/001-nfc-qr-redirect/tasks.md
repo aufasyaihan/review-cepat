@@ -61,12 +61,12 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Verify existing `tests/e2e` setup flow still passes (`npm run test:e2e`) after the route-group restructure; fix any `app/(redirect)` path regressions in `tests/`
+- [x] T011 [P] [US1] Verify existing `tests/e2e` setup flow still passes (`npm run test:e2e`) after the route-group restructure; fix any `app/(redirect)` path regressions in `tests/`
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Confirm setup routes stay in `(redirect)` with NO next-themes provider and centered minimal card (FR-030/034): `app/(redirect)/[slug]/setup/page.tsx`, `app/(redirect)/[slug]/setup/redirect/page.tsx`, `app/(redirect)/[slug]/setup/loading.tsx`
-- [ ] T013 [US1] Route `app/(auth)/register-claim/page.tsx` claim-code registration through the shared `domains/auth/server/permissions.ts` role resolution (US2 binding); no UI change beyond keeping the centered card + framer-motion
+- [x] T012 [P] [US1] Confirm setup routes stay in `(redirect)` with NO next-themes provider and centered minimal card (FR-030/034): `app/(redirect)/[slug]/setup/page.tsx`, `app/(redirect)/[slug]/setup/redirect/page.tsx`, `app/(redirect)/[slug]/setup/loading.tsx`
+- [x] T013 [US1] Route `app/(auth)/register-claim/page.tsx` claim-code registration through the shared `domains/auth/server/permissions.ts` role resolution (US2 binding); no UI change beyond keeping the centered card + framer-motion
 
 **Checkpoint**: US1 works anonymously on the new structure.
 
@@ -80,13 +80,13 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 
 ### Tests for User Story 2
 
-- [ ] T014 [P] [US2] Unit tests for `registerWithClaimCode`/`claimWithCode` binding rules in `domains/merchant/__tests__/` (boundUserId null→set; already-bound rejected "code already used"; cross-org code rejected) — per data-model.md `device.claimCodeHash`
-- [ ] T015 [P] [US2] E2E: sub-merchant register-with-code + dashboard isolation in `tests/e2e/org-claim.spec.ts` against the new `/devices/claim` path
+- [x] T014 [P] [US2] Unit tests for `registerWithClaimCode`/`claimWithCode` binding rules in `domains/merchant/__tests__/` (boundUserId null→set; already-bound rejected "code already used"; cross-org code rejected) — per data-model.md `device.claimCodeHash`
+- [x] T015 [P] [US2] E2E: sub-merchant register-with-code + dashboard isolation in `tests/e2e/org-claim.spec.ts` against the new `/devices/claim` path
 
 ### Implementation for User Story 2
 
-- [ ] T016 [P] [US2] Move claim UI to `app/(dashboard)/devices/claim/page.tsx` (root path, from legacy `app/(merchant)/devices/claim/`): claim-code input → login-or-register selection → association result; toasts on success/error; phantom-ui skeleton (FR-031/033); rejects cross-org codes
-- [ ] T017 [US2] Point the register-claim flow at the shared claim service so a claim code from `/register-claim` is still honored from the auth area
+- [x] T016 [P] [US2] Move claim UI to `app/(dashboard)/devices/claim/page.tsx` (root path, from legacy `app/(merchant)/devices/claim/`): claim-code input → login-or-register selection → association result; toasts on success/error; phantom-ui skeleton (FR-031/033); rejects cross-org codes
+- [x] T017 [US2] Point the register-claim flow at the shared claim service so a claim code from `/register-claim` is still honored from the auth area
 
 **Checkpoint**: US2 works at `/devices/claim`; US1 unchanged.
 
@@ -100,11 +100,11 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 
 ### Tests for User Story 3
 
-- [ ] T018 [P] [US3] Verify `tests/e2e` scan specs pass unmodified after restructure; confirm `scan_event` recorded exactly once per request (SC-003)
+- [x] T018 [P] [US3] Verify `tests/e2e` scan specs pass unmodified after restructure; confirm `scan_event` recorded exactly once per request (SC-003)
 
 ### Implementation for User Story 3
 
-- [ ] T019 [P] [US3] Keep `app/(redirect)/s/[slug]/page.tsx` as the single public scan surface; assert NO theme provider and no authenticated layout (FR-034); keep per-device SEO metadata and mobile-first WCAG AA rendering (public-scan.md)
+- [x] T019 [P] [US3] Keep `app/(redirect)/s/[slug]/page.tsx` as the single public scan surface; assert NO theme provider and no authenticated layout (FR-034); keep per-device SEO metadata and mobile-first WCAG AA rendering (public-scan.md)
 
 **Checkpoint**: US3 fully functional on the new structure with no changes required.
 
@@ -118,15 +118,15 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 
 ### Tests for User Story 4
 
-- [ ] T020 [P] [US4] E2E: owner dashboard — device list, analytics on `/dashboard`, invite member, owner reset in `tests/e2e/owner-dashboard.spec.ts` (update paths from legacy `(merchant)` routes)
-- [ ] T021 [P] [US4] Unit tests for owner-only authorization: analytics + member management denied to `member`; owner sees all org devices — in `domains/{merchant,analytics}/__tests__/` (SC-008)
+- [x] T020 [P] [US4] E2E: owner dashboard — device list, analytics on `/dashboard`, invite member, owner reset in `tests/e2e/owner-dashboard.spec.ts` (update paths from legacy `(merchant)` routes)
+- [x] T021 [P] [US4] Unit tests for owner-only authorization: analytics + member management denied to `member`; owner sees all org devices — in `domains/{merchant,analytics}/__tests__/` (SC-008)
 
 ### Implementation for User Story 4
 
-- [ ] T022 [P] [US4] Migrate `app/(merchant)/dashboard/page.tsx` → `app/(dashboard)/dashboard/page.tsx` (root `/dashboard`): role-aware; owner sees org overview + analytics section (totals, daily, per-device, browser/device/country/city/referrer); member sees device-focused view; TanStack prefetch + phantom-ui skeleton (FR-033)
-- [ ] T023 [P] [US4] Migrate `app/(merchant)/members/page.tsx` + `app/(merchant)/members/[memberId]/page.tsx` → `app/(dashboard)/user-management/page.tsx` + `[memberId]/page.tsx` (root `/user-management`): member table, invite form, role display, assigned devices, reassign — toasts on every action (FR-031); owner-gated in-page and via `permission` (FR-037)
-- [ ] T024 [P] [US4] Migrate `app/(merchant)/devices/[id]/settings/page.tsx` → `app/(dashboard)/devices/[id]/settings/page.tsx`: owner reset (keep-org) with confirmation dialog, assign-to-member selector, unpublish danger actions — each with toast
-- [ ] T025 [US4] Ensure analytics aggregation ops `overview()`/`breakdown()` stay owner-only and are consumed by the `/dashboard` section (not a standalone route); remove any legacy `app/(merchant)/analytics/` + `app/(merchant)/(sub-merchant)/analytics/` pages
+- [x] T022 [P] [US4] Migrate `app/(merchant)/dashboard/page.tsx` → `app/(dashboard)/dashboard/page.tsx` (root `/dashboard`): role-aware; owner sees org overview + analytics section (totals, daily, per-device, browser/device/country/city/referrer); member sees device-focused view; TanStack prefetch + phantom-ui skeleton (FR-033)
+- [x] T023 [P] [US4] Migrate `app/(merchant)/members/page.tsx` + `app/(merchant)/members/[memberId]/page.tsx` → `app/(dashboard)/user-management/page.tsx` + `[memberId]/page.tsx` (root `/user-management`): member table, invite form, role display, assigned devices, reassign — toasts on every action (FR-031); owner-gated in-page and via `permission` (FR-037)
+- [x] T024 [P] [US4] Migrate `app/(merchant)/devices/[id]/settings/page.tsx` → `app/(dashboard)/devices/[id]/settings/page.tsx`: owner reset (keep-org) with confirmation dialog, assign-to-member selector, unpublish danger actions — each with toast
+- [x] T025 [US4] Ensure analytics aggregation ops `overview()`/`breakdown()` stay owner-only and are consumed by the `/dashboard` section (not a standalone route); remove any legacy `app/(merchant)/analytics/` + `app/(merchant)/(sub-merchant)/analytics/` pages
 
 **Checkpoint**: Owner dashboard fully functional at root paths; legacy `(merchant)` dashboard pages removed.
 
@@ -222,8 +222,8 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 - [ ] T045 [P] WCAG AA audit of public surfaces (`/s/[slug]`, setup flow, homepage) and dashboard: keyboard nav, focus states, contrast (US8/SC-007)
 - [ ] T046 Run `npm run lint`, `npm run typecheck`, `npm run coverage` (≥90%), `npm run build`, then `npm run test:e2e` against the prod build (`db:migrate` → `db:seed:e2e` → `build` → `next start`, isolated `review_cepat_test` DB) — full green required
 - [ ] T047 Confirm quickstart.md Scenarios 1–9 all pass locally on the new structure; fix any scenario drift
-- [ ] T048 [P] [Clarification 2026-09-16] Add the reusable `DataTable` component at `components/ui/data-table/` mirroring the reference project (`khitan-plus-hipnosis/components/ui/data-table/`): `data-table.tsx` + `data-table-header.tsx` + `data-table-pagination.tsx` + `data-table-skeleton.tsx` + `data-table-view-options.tsx`, built on `@tanstack/react-table` (add the dependency) over the existing `components/ui/table.tsx` primitives; use it for ALL dashboard data views (device lists, members, merchants, organizations, analytics breakdowns) instead of hand-rolled static `Table` markup (FR-038)
-- [ ] T049 [P] [Clarification 2026-09-16] Extend the `permission` table with `parent_id` (nullable self-reference): schema + migration (`db:generate`/`db:migrate`) + `db/seed/permissions.ts` API-endpoint rows — each permissioned route gets rows with `is_menu=false`, `path` = the endpoint (e.g. `/api/device`), dotted label (e.g. `api.create_device`), `parent_id` = the page row it serves; enforce `can(role, orgRole, path)` in the domain API layer for those endpoints (FR-037)
+- [x] T048 [P] [Clarification 2026-09-16] Add the reusable `DataTable` component at `components/ui/data-table/` mirroring the reference project (`khitan-plus-hipnosis/components/ui/data-table/`): `data-table.tsx` + `data-table-header.tsx` + `data-table-pagination.tsx` + `data-table-skeleton.tsx` + `data-table-view-options.tsx`, built on `@tanstack/react-table` (add the dependency) over the existing `components/ui/table.tsx` primitives; use it for ALL dashboard data views (device lists, members, merchants, organizations, analytics breakdowns) instead of hand-rolled static `Table` markup (FR-038)
+- [x] T049 [P] [Clarification 2026-09-16] Extend the `permission` table with `parent_id` (nullable self-reference): schema + migration (`db:generate`/`db:migrate`) + `db/seed/permissions.ts` API-endpoint rows — each permissioned route gets rows with `is_menu=false`, `path` = the endpoint (e.g. `/api/device`), dotted label (e.g. `api.create_device`), `parent_id` = the page row it serves; enforce `can(role, orgRole, path)` in the domain API layer for those endpoints (FR-037)
 
 ---
 

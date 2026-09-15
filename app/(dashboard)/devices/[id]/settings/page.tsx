@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { deviceKeys } from '@/domains/device/api/queries';
 import { getVisible } from '@/domains/device/server/service';
+import { memberKeys, memberQueries } from '@/domains/merchant/api/queries';
 import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permissions';
 import { getQueryClient } from '@/lib/query-client';
 import { requireRole } from '@/lib/session';
@@ -27,9 +28,14 @@ export default async function DeviceSettingsPage({ params }: { params: Promise<{
     notFound();
   }
 
+  const members = await queryClient.fetchQuery({
+    queryKey: memberKeys.list(),
+    queryFn: () => memberQueries.list().queryFn(),
+  });
+
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <SettingsClient deviceId={id} />
+      <SettingsClient deviceId={id} isOwner={true} members={members} />
     </HydrationBoundary>
   );
 }
