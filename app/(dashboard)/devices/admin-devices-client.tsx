@@ -323,7 +323,7 @@ function CreateDeviceDialog({
                   setOrgId(value && value !== 'none' ? value : '')
                 }
               >
-                <SelectTrigger id="device-org">
+                <SelectTrigger id="device-org" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

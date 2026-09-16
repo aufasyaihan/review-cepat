@@ -26,6 +26,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       className={cn('h-full antialiased', 'font-sans', roboto.variable, interHeading.variable)}
+      suppressHydrationWarning
     >
       <body className="flex min-h-dvh flex-col">
         <RootProvider>

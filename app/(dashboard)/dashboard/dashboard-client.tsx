@@ -1,8 +1,11 @@
 'use client';
 
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { Activity, BarChart3, Filter, Smartphone, Tag } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -10,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { StatCard } from '@/components/ui/stat-card';
 import { analyticsQueries } from '@/domains/analytics/api/queries';
 import type { BreakdownDimension } from '@/domains/analytics/server/service';
 import { deviceQueries } from '@/domains/device/api/queries';
@@ -39,12 +43,9 @@ export function DashboardClient({ userName, isOwner }: { userName: string; isOwn
         <p className="mt-2 text-muted-foreground">
           Claim a device with its one-time claim code to get started.
         </p>
-        <Link
-          href="/devices/claim"
-          className="mt-6 inline-block rounded bg-primary px-4 py-2 text-primary-foreground"
-        >
+        <Button render={<Link href="/devices/claim" />} nativeButton={false} className="mt-6">
           Claim a device
-        </Link>
+        </Button>
       </div>
     );
   }
@@ -53,21 +54,22 @@ export function DashboardClient({ userName, isOwner }: { userName: string; isOwn
     <div className="space-y-8">
       <header>
         <h1 className="text-2xl font-semibold">Welcome, {userName}</h1>
+        <p className="mt-1 text-muted-foreground">Here&apos;s how your devices are doing.</p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Devices" value={devices.length} />
-        <StatCard label="Published" value={published} />
-        <StatCard label="My devices" value={devices.length} />
+      <div className="grid auto-rows-min gap-4 sm:grid-cols-3">
+        <StatCard label="Devices" value={devices.length} icon={Smartphone} />
+        <StatCard label="Published" value={published} icon={Tag} />
+        <StatCard label="My devices" value={devices.length} icon={Activity} />
       </div>
 
       <nav className="flex flex-wrap gap-3">
-        <Link href="/devices" className="rounded bg-primary px-4 py-2 text-primary-foreground">
+        <Button render={<Link href="/devices" />} nativeButton={false}>
           Manage devices
-        </Link>
-        <Link href="/devices/claim" className="rounded border px-4 py-2 hover:bg-muted">
+        </Button>
+        <Button render={<Link href="/devices/claim" />} nativeButton={false} variant="outline">
           Claim a device
-        </Link>
+        </Button>
       </nav>
 
       {isOwner && analytics && (
@@ -109,106 +111,118 @@ function OwnerAnalytics({
         <h2 className="text-2xl font-semibold">Analytics</h2>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total scans" value={totalScans} />
-        <StatCard label="Published devices" value={published} />
+      <div className="grid auto-rows-min gap-4 sm:grid-cols-3">
+        <StatCard label="Total scans" value={totalScans} icon={BarChart3} />
+        <StatCard label="Published devices" value={published} icon={Tag} />
       </div>
 
-      <section className="space-y-3">
-        <h3 className="text-lg font-semibold">Scans per day</h3>
-        {dailyScans.length === 0 ? (
-          <Empty label="No scans yet" hint="Publish a device and scan it once to see data here." />
-        ) : (
-          <ul className="divide-y rounded border">
-            {dailyScans.map((d) => (
-              <li key={d.day} className="flex items-center justify-between p-3 text-sm">
-                <span>{d.day}</span>
-                <span className="font-medium">{d.scans}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Scans per day</CardTitle>
+            <CardDescription>Daily scan volume across all devices.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {dailyScans.length === 0 ? (
+              <Empty
+                label="No scans yet"
+                hint="Publish a device and scan it once to see data here."
+              />
+            ) : (
+              <ul className="divide-y divide-border">
+                {dailyScans.map((d) => (
+                  <li key={d.day} className="flex items-center justify-between py-2.5 text-sm">
+                    <span className="text-muted-foreground">{d.day}</span>
+                    <span className="font-medium">{d.scans}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
 
-      <section className="space-y-3">
-        <h3 className="text-lg font-semibold">Scans per device</h3>
-        {deviceScans.length === 0 ? (
-          <Empty label="No devices" hint="Claim and publish a device to start collecting scans." />
-        ) : (
-          <ul className="divide-y rounded border">
-            {deviceScans.map((d) => (
-              <li key={d.deviceId} className="flex items-center justify-between p-3 text-sm">
-                <Link href={`/devices/${d.deviceId}`} className="hover:underline">
-                  {d.name} <code className="text-xs text-muted-foreground">/s/{d.slug}</code>
-                </Link>
-                <span className="font-medium">{d.scans}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Scans per device</CardTitle>
+            <CardDescription>Which devices are getting tapped and scanned.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {deviceScans.length === 0 ? (
+              <Empty
+                label="No devices"
+                hint="Claim and publish a device to start collecting scans."
+              />
+            ) : (
+              <ul className="divide-y divide-border">
+                {deviceScans.map((d) => (
+                  <li key={d.deviceId} className="flex items-center justify-between py-2.5 text-sm">
+                    <Link href={`/devices/${d.deviceId}`} className="hover:underline">
+                      {d.name} <code className="text-xs text-muted-foreground">/s/{d.slug}</code>
+                    </Link>
+                    <span className="font-medium">{d.scans}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      <section className="space-y-3">
-        <h3 className="text-lg font-semibold">Scan breakdowns</h3>
-        <div className="flex flex-wrap items-center gap-3">
-          <Select value={activeDevice} onValueChange={(value) => setSelectedDevice(value ?? '')}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {deviceScans.map((d) => (
-                <SelectItem key={d.deviceId} value={d.deviceId}>
-                  {d.name}
-                </SelectItem>
+      <Card>
+        <CardHeader>
+          <CardTitle>Scan breakdowns</CardTitle>
+          <CardDescription>Filter scans by device and dimension.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={activeDevice} onValueChange={(value) => setSelectedDevice(value ?? '')}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {deviceScans.map((d) => (
+                  <SelectItem key={d.deviceId} value={d.deviceId}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              <Filter className="size-3.5 text-muted-foreground" />
+              {DIMENSIONS.map((d) => (
+                <Button
+                  key={d.value}
+                  type="button"
+                  size="sm"
+                  variant={dimension === d.value ? 'default' : 'outline'}
+                  onClick={() => setDimension(d.value)}
+                >
+                  {d.label}
+                </Button>
               ))}
-            </SelectContent>
-          </Select>
-          <div className="flex flex-wrap gap-2">
-            {DIMENSIONS.map((d) => (
-              <button
-                key={d.value}
-                type="button"
-                onClick={() => setDimension(d.value)}
-                className={
-                  dimension === d.value
-                    ? 'rounded border bg-primary px-3 py-1.5 text-sm text-primary-foreground'
-                    : 'rounded border px-3 py-1.5 text-sm hover:bg-muted'
-                }
-              >
-                {d.label}
-              </button>
-            ))}
+            </div>
           </div>
-        </div>
-        {breakdownData && breakdownData.length === 0 ? (
-          <Empty label="No data" hint="No scans match this breakdown yet." />
-        ) : (
-          <ul className="divide-y rounded border">
-            {breakdownData?.map((row) => (
-              <li key={row.value} className="flex items-center justify-between p-3 text-sm">
-                <span>{row.value}</span>
-                <span className="font-medium">{row.scans}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          {breakdownData && breakdownData.length === 0 ? (
+            <Empty label="No data" hint="No scans match this breakdown yet." />
+          ) : (
+            <ul className="divide-y divide-border">
+              {breakdownData?.map((row) => (
+                <li key={row.value} className="flex items-center justify-between py-2.5 text-sm">
+                  <span>{row.value}</span>
+                  <span className="font-medium">{row.scans}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </section>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="rounded border p-5">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 text-3xl font-semibold">{value}</p>
-    </div>
   );
 }
 
 function Empty({ label, hint }: { label: string; hint: string }) {
   return (
-    <div className="rounded border border-dashed p-6 text-center">
+    <div className="rounded-lg border border-dashed p-6 text-center">
       <p className="font-medium">{label}</p>
       <p className="mt-1 text-sm text-muted-foreground">{hint}</p>
     </div>

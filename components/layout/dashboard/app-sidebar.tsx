@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -26,6 +27,8 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -35,7 +38,15 @@ import { signOutAction } from '@/domains/auth/server/actions';
 
 export type NavItem = { href: string; label: string; icon: string | null };
 
-const ICONS = { LayoutDashboard, Plus, Settings, Smartphone, Store, Tag, Users } as const;
+const ICONS = {
+  LayoutDashboard,
+  Plus,
+  Settings,
+  Smartphone,
+  Store,
+  Tag,
+  Users,
+} as const;
 
 export function AppSidebar({
   nav,
@@ -66,57 +77,90 @@ export function AppSidebar({
       .map((part) => part[0]?.toUpperCase())
       .join('') || 'U';
 
+  const settingsItem = nav.find((item) => item.href === '/settings');
+  const mainNav = nav.filter((item) => item.href !== '/settings');
+
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-            NFC
+          <div className="flex shrink-0 p-2 items-center justify-center rounded-md bg-primary/10 border border-primary text-xs font-bold text-primary-foreground">
+            <Store className="text-primary" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">NFC QR Platform</p>
+            <p className="truncate text-kg font-semibold">
+              Review<span className="text-primary">Cepat</span>
+            </p>
           </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarMenu>
-          {nav.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const Icon = item.icon
-              ? (ICONS[item.icon as keyof typeof ICONS] ?? LayoutDashboard)
-              : LayoutDashboard;
-            return (
-              <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton
-                  render={<Link href={item.href} />}
-                  isActive={active}
-                  tooltip={item.label}
-                >
-                  <Icon />
-                  <span>{item.label}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            );
-          })}
-        </SidebarMenu>
+        <SidebarGroup>
+          <SidebarGroupLabel>Main Menu</SidebarGroupLabel>
+          <SidebarMenu>
+            {mainNav.map((item) => {
+              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const Icon = item.icon
+                ? (ICONS[item.icon as keyof typeof ICONS] ?? LayoutDashboard)
+                : LayoutDashboard;
+              return (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    render={<Link href={item.href} className="py-5" />}
+                    isActive={active}
+                    tooltip={item.label}
+                  >
+                    <Icon />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          {settingsItem && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                render={<Link href={settingsItem.href} className="py-5" />}
+                isActive={
+                  pathname === settingsItem.href || pathname.startsWith(`${settingsItem.href}/`)
+                }
+                tooltip={settingsItem.label}
+              >
+                <Settings />
+                <span>{settingsItem.label}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <DropdownMenu>
-              <DropdownMenuTrigger render={<SidebarMenuButton tooltip={user.name} />}>
+              <DropdownMenuTrigger
+                render={
+                  <SidebarMenuButton tooltip={user.name} className="py-8 cursor-pointer gap-2" />
+                }
+              >
                 <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
                   {initials}
                 </div>
-                <span>{user.name}</span>
+                <span className="capitalize">{user.name}</span>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="end" className="w-(--sidebar-width)">
-                <DropdownMenuLabel>
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{user.name}</p>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
-                  </div>
-                </DropdownMenuLabel>
+              <DropdownMenuContent side="right" align="end" className="w-(--sidebar-width)">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="p-0 font-normal">
+                    <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                      <div className="flex size-8 capitalize shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                        {initials}
+                      </div>
+                      <div className="grid flex-1 leading-tight">
+                        <span className="truncate font-medium">{user.name}</span>
+                        <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                      </div>
+                    </div>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={signOut}>
                   <LogOut />

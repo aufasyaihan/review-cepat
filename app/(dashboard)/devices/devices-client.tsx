@@ -180,7 +180,12 @@ export function DevicesClient() {
       headerContent={
         <div className="flex flex-col gap-4">
           <h1 className="text-xl font-semibold">My devices</h1>
-          <Button render={<Link href="/devices/claim" />} variant="outline" className="w-fit">
+          <Button
+            render={<Link href="/devices/claim" />}
+            nativeButton={false}
+            variant="outline"
+            className="w-fit"
+          >
             Claim a device
           </Button>
         </div>

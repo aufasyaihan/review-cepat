@@ -1,52 +1,33 @@
 'use client';
 
-import { ThemeToggle } from '@/components/layout/dashboard/theme-toggle';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { UserRound } from 'lucide-react';
 
-export function SettingsClient({
-  name,
-  email,
-  role,
-}: {
-  name: string;
-  email: string;
-  role: string;
-}) {
+import { ActiveSessions } from '@/components/settings/active-sessions';
+import { PasswordForm } from '@/components/settings/password-form';
+import { ProfileForm } from '@/components/settings/profile-form';
+
+export function SettingsClient() {
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold">Settings</h1>
-      </header>
-      <Separator />
+    <div className="space-y-8">
+      <div className="flex items-center gap-3">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+          <UserRound className="size-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold">Account settings</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage your profile, password, and active sessions.
+          </p>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>Your account details.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-1">
-          <p>
-            Name: <span className="text-muted-foreground">{name}</span>
-          </p>
-          <p>
-            Account email: <span className="text-muted-foreground">{email}</span>
-          </p>
-          <p>
-            Role: <span className="text-muted-foreground">{role}</span>
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Theme</CardTitle>
-          <CardDescription>Switch between light and dark mode.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ThemeToggle />
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+        <ProfileForm />
+        <PasswordForm />
+        <div className="lg:col-span-2">
+          <ActiveSessions />
+        </div>
+      </div>
     </div>
   );
 }

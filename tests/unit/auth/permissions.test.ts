@@ -154,14 +154,6 @@ describe('listNavForRole', () => {
       sort: 200,
     },
     {
-      path: '/devices/new',
-      label: 'New device',
-      icon: 'Plus',
-      isMenu: true,
-      roles: ['ADMIN'],
-      sort: 300,
-    },
-    {
       path: '/devices/claim',
       label: 'Claim a device',
       icon: 'Tag',
@@ -204,7 +196,6 @@ describe('listNavForRole', () => {
     expect(nav.map((n) => n.label)).toEqual([
       'Dashboard',
       'Devices',
-      'New device',
       'User management',
       'Merchants',
       'Settings',
