@@ -282,17 +282,32 @@ export type MemberWithUser = {
   name: string;
   email: string;
   deviceCount: number;
+  organizationId: string;
+  organizationName: string;
 };
 
-/** Owner view: every member of an organization with assigned-device counts. */
-export async function listMembers(organizationId: string): Promise<MemberWithUser[]> {
-  const db = getDb();
-  const rows = await db.query.member.findMany({
-    where: eq(member.organizationId, organizationId),
-    with: { user: true },
-  });
+type MemberRow = {
+  id: string;
+  role: string;
+  organizationId: string;
+  organization: { name: string };
+  user: { name: string; email: string };
+};
 
-  const counts = await db
+function toMemberWithUser(row: MemberRow, deviceCount: number): MemberWithUser {
+  return {
+    id: row.id,
+    role: row.role as MemberWithUser['role'],
+    name: row.user.name,
+    email: row.user.email,
+    deviceCount,
+    organizationId: row.organizationId,
+    organizationName: row.organization.name,
+  };
+}
+
+async function memberDeviceCounts(): Promise<Map<string, number>> {
+  const counts = await getDb()
     .select({ memberId: device.memberId, cnt: count() })
     .from(device)
     .where(isNotNull(device.memberId))
@@ -301,16 +316,39 @@ export async function listMembers(organizationId: string): Promise<MemberWithUse
   for (const c of counts) {
     if (c.memberId !== null) countByMember.set(c.memberId, c.cnt);
   }
+  return countByMember;
+}
 
-  return rows
-    .map((r) => ({
-      id: r.id,
-      role: r.role as MemberWithUser['role'],
-      name: r.user.name,
-      email: r.user.email,
-      deviceCount: countByMember.get(r.id) ?? 0,
-    }))
-    .sort((a, b) => (a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : 0));
+function sortOwnerFirst(members: MemberWithUser[]): MemberWithUser[] {
+  return members.sort((a, b) => (a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : 0));
+}
+
+/** Owner view: every member of an organization with assigned-device counts. */
+export async function listMembers(organizationId: string): Promise<MemberWithUser[]> {
+  const rows = await getDb().query.member.findMany({
+    where: eq(member.organizationId, organizationId),
+    with: { user: true, organization: true },
+  });
+  const countByMember = await memberDeviceCounts();
+  return sortOwnerFirst(rows.map((r) => toMemberWithUser(r, countByMember.get(r.id) ?? 0)));
+}
+
+/** Admin view: every member across every organization (FR-021/022, admin parity). */
+export async function listAllMembers(): Promise<MemberWithUser[]> {
+  const rows = await getDb().query.member.findMany({ with: { user: true, organization: true } });
+  const countByMember = await memberDeviceCounts();
+  return sortOwnerFirst(rows.map((r) => toMemberWithUser(r, countByMember.get(r.id) ?? 0)));
+}
+
+/** Admin view: a single member in any organization, for the detail page. */
+export async function getMemberById(memberId: string): Promise<MemberWithUser | null> {
+  const row = await getDb().query.member.findFirst({
+    where: eq(member.id, memberId),
+    with: { user: true, organization: true },
+  });
+  if (!row) return null;
+  const countByMember = await memberDeviceCounts();
+  return toMemberWithUser(row, countByMember.get(row.id) ?? 0);
 }
 
 async function assertMemberInOrg(memberId: string, organizationId: string) {
