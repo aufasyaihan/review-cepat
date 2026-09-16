@@ -2,7 +2,6 @@ import {
   boolean,
   index,
   int,
-  json,
   mysqlTable,
   text,
   timestamp,
@@ -236,7 +235,35 @@ export const permission = mysqlTable('permission', {
   icon: varchar('icon', { length: 60 }),
   isMenu: boolean('is_menu').notNull().default(false),
   parentId: varchar('parent_id', { length: 36 }),
-  roles: json('roles').$type<string[]>().notNull(),
   sort: int('sort').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+export const masterRole = mysqlTable('master_role', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  name: varchar('name', { length: 20 }).notNull().unique(),
+  description: varchar('description', { length: 255 }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const rolePermission = mysqlTable(
+  'role_permission',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    roleId: varchar('role_id', { length: 36 })
+      .notNull()
+      .references(() => masterRole.id, { onDelete: 'cascade' }),
+    permissionId: varchar('permission_id', { length: 36 })
+      .notNull()
+      .references(() => permission.id, { onDelete: 'cascade' }),
+    scope: varchar('scope', { length: 10 }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('role_permission_role_perm_scope_idx').on(
+      table.roleId,
+      table.permissionId,
+      table.scope,
+    ),
+  ],
+);

@@ -1,25 +1,24 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '@/db';
-import { permission } from '@/db/schema';
+import { masterRole, permission, rolePermission } from '@/db/schema';
 
-// One row per path (path is UNIQUE in the schema). Where a path is scoped to the
-// org owner only, the roles JSON carries a `<ROLE>:<orgRole>` token — e.g.
-// `/user-management` is `['ADMIN', 'MERCHANT:owner']`, so members are denied it.
-//
-// Two row kinds (Clarification 2026-09-16, FR-037):
-// - Navigation rows: `isMenu=true`, `parentPath` undefined — sidebar items / pages.
-// - API-endpoint rows: `isMenu=false`, `parentPath` = the page they serve,
-//   `path` = the endpoint, dotted `label` (e.g. `api.create_device`). Gap labels
-//   resolve to parent nav rows by path at insert; `can()` gates them at the
-//   API layer.
+// Normalized permission model (Clarification 2026-09-16, FR-037):
+// - master_role holds the platform roles ADMIN and MERCHANT only.
+// - permission holds nav rows (is_menu=true) and API-endpoint rows
+//   (is_menu=false, parentId = the page row they serve, dotted label
+//   `api.<action>`). NO role column.
+// - role_permission links a master role to a permission. A link with a
+//   `scope` of `owner` only grants the permission to a MERCHANT whose active
+//   organization role is owner; `member` restricts to members; null/`both`
+//   grants regardless of org role. ADMIN is a superuser at the guard layer
+//   (FR-041) but links are still seeded so nav/self-list render all items.
 export const PERMISSION_ROWS: Array<{
   path: string;
   label: string;
   icon: string;
   isMenu: boolean;
-  roles: string[];
   sort: number;
   parentPath?: string;
 }> = [
@@ -28,7 +27,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'Dashboard',
     icon: 'LayoutDashboard',
     isMenu: true,
-    roles: ['ADMIN', 'MERCHANT'],
     sort: 100,
   },
   {
@@ -36,7 +34,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'Devices',
     icon: 'Smartphone',
     isMenu: true,
-    roles: ['ADMIN', 'MERCHANT'],
     sort: 200,
   },
   {
@@ -44,7 +41,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'Claim a device',
     icon: 'Tag',
     isMenu: true,
-    roles: ['MERCHANT'],
     sort: 300,
   },
   {
@@ -52,7 +48,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'User management',
     icon: 'Users',
     isMenu: true,
-    roles: ['ADMIN', 'MERCHANT:owner'],
     sort: 500,
   },
   {
@@ -60,7 +55,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'Merchants',
     icon: 'Store',
     isMenu: true,
-    roles: ['ADMIN'],
     sort: 600,
   },
   {
@@ -68,7 +62,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'Settings',
     icon: 'Settings',
     isMenu: true,
-    roles: ['ADMIN', 'MERCHANT'],
     sort: 9999,
   },
   // ── API-endpoint rows (is_menu=false, label `api.<action>`, parent = page) ──
@@ -77,7 +70,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.create_device',
     icon: '',
     isMenu: false,
-    roles: ['ADMIN'],
     sort: 0,
     parentPath: '/devices',
   },
@@ -86,7 +78,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.claim_device',
     icon: '',
     isMenu: false,
-    roles: ['MERCHANT'],
     sort: 0,
     parentPath: '/devices/claim',
   },
@@ -95,7 +86,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.publish_device',
     icon: '',
     isMenu: false,
-    roles: ['MERCHANT'],
     sort: 0,
     parentPath: '/devices',
   },
@@ -104,7 +94,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.unpublish_device',
     icon: '',
     isMenu: false,
-    roles: ['MERCHANT'],
     sort: 0,
     parentPath: '/devices',
   },
@@ -113,7 +102,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.transfer_device',
     icon: '',
     isMenu: false,
-    roles: ['MERCHANT'],
     sort: 0,
     parentPath: '/devices',
   },
@@ -122,7 +110,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.reset_device',
     icon: '',
     isMenu: false,
-    roles: ['ADMIN', 'MERCHANT:owner'],
     sort: 0,
     parentPath: '/devices',
   },
@@ -131,7 +118,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.disable_device',
     icon: '',
     isMenu: false,
-    roles: ['ADMIN'],
     sort: 0,
     parentPath: '/devices',
   },
@@ -140,7 +126,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.delete_device',
     icon: '',
     isMenu: false,
-    roles: ['ADMIN'],
     sort: 0,
     parentPath: '/devices',
   },
@@ -149,7 +134,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.invite_member',
     icon: '',
     isMenu: false,
-    roles: ['ADMIN', 'MERCHANT:owner'],
     sort: 0,
     parentPath: '/user-management',
   },
@@ -158,7 +142,6 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.assign_device',
     icon: '',
     isMenu: false,
-    roles: ['ADMIN', 'MERCHANT:owner'],
     sort: 0,
     parentPath: '/user-management',
   },
@@ -167,22 +150,102 @@ export const PERMISSION_ROWS: Array<{
     label: 'api.unassign_device',
     icon: '',
     isMenu: false,
-    roles: ['ADMIN', 'MERCHANT:owner'],
     sort: 0,
     parentPath: '/user-management',
   },
+  {
+    path: '/api/permissions',
+    label: 'api.list_my_permissions',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/dashboard',
+  },
+  {
+    path: '/api/roles/:roleId/permissions',
+    label: 'api.list_role_permissions',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/dashboard',
+  },
+  {
+    path: '/api/analytics/admin-overview',
+    label: 'api.admin_overview',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/dashboard',
+  },
+  {
+    path: '/api/analytics/overview',
+    label: 'api.overview',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/dashboard',
+  },
 ];
 
-/** Idempotent by `path`; safe to run on every seed/dev/test boot. */
+export const MASTER_ROLE_ROWS = ['ADMIN', 'MERCHANT'] as const;
+
+/**
+ * Per-permission role links. `ALL` grants every role; a single value applies
+ * to that role. Value forms: `null` (no scope), 'owner', 'member', 'both'.
+ */
+const LINK_ROWS: Array<{
+  path: string;
+  admin: boolean;
+  merchantScope?: 'owner' | 'member' | 'both' | null;
+}> = [
+  { path: '/dashboard', admin: true, merchantScope: null },
+  { path: '/devices', admin: true, merchantScope: null },
+  { path: '/devices/claim', admin: false, merchantScope: null },
+  { path: '/user-management', admin: true, merchantScope: 'owner' },
+  { path: '/merchants', admin: true, merchantScope: null },
+  { path: '/settings', admin: true, merchantScope: null },
+  { path: '/api/device/create', admin: true, merchantScope: null },
+  { path: '/api/device/claim', admin: false, merchantScope: null },
+  { path: '/api/device/publish', admin: false, merchantScope: null },
+  { path: '/api/device/unpublish', admin: false, merchantScope: null },
+  { path: '/api/device/transfer', admin: false, merchantScope: null },
+  { path: '/api/device/reset', admin: true, merchantScope: 'owner' },
+  { path: '/api/device/disable', admin: true, merchantScope: null },
+  { path: '/api/device/delete', admin: true, merchantScope: null },
+  { path: '/api/member/invite', admin: true, merchantScope: 'owner' },
+  { path: '/api/member/assign', admin: true, merchantScope: 'owner' },
+  { path: '/api/member/unassign', admin: true, merchantScope: 'owner' },
+  { path: '/api/permissions', admin: true, merchantScope: null },
+  { path: '/api/roles/:roleId/permissions', admin: true, merchantScope: null },
+  { path: '/api/analytics/admin-overview', admin: true, merchantScope: null },
+  { path: '/api/analytics/overview', admin: true, merchantScope: 'owner' },
+];
+
+/** Idempotent; safe to run on every seed/dev/test boot. */
 export async function ensurePermissions(db: Db): Promise<void> {
   const now = new Date();
-  const byPath = new Map<string, string>();
+
+  const roleIds = new Map<string, string>();
+  for (const name of MASTER_ROLE_ROWS) {
+    const existing = await db.query.masterRole.findFirst({
+      where: eq(masterRole.name, name),
+    });
+    if (existing) {
+      roleIds.set(name, existing.id);
+      continue;
+    }
+    const id = randomUUID();
+    await db.insert(masterRole).values({ id, name, createdAt: now });
+    roleIds.set(name, id);
+  }
+
+  const permIds = new Map<string, string>();
   for (const row of PERMISSION_ROWS) {
     const existing = await db.query.permission.findFirst({
       where: eq(permission.path, row.path),
     });
     if (existing) {
-      byPath.set(row.path, existing.id);
+      permIds.set(row.path, existing.id);
       continue;
     }
     const id = randomUUID();
@@ -192,11 +255,45 @@ export async function ensurePermissions(db: Db): Promise<void> {
       label: row.label,
       icon: row.icon || null,
       isMenu: row.isMenu,
-      parentId: row.parentPath ? (byPath.get(row.parentPath) ?? null) : null,
-      roles: row.roles,
+      parentId: row.parentPath ? (permIds.get(row.parentPath) ?? null) : null,
       sort: row.sort,
       createdAt: now,
     });
-    byPath.set(row.path, id);
+    permIds.set(row.path, id);
   }
+
+  for (const link of LINK_ROWS) {
+    const permissionId = permIds.get(link.path);
+    if (!permissionId) continue;
+    if (link.admin) {
+      await ensureLink(db, roleIds, 'ADMIN', permissionId, null, now);
+    }
+    await ensureLink(db, roleIds, 'MERCHANT', permissionId, link.merchantScope ?? null, now);
+  }
+}
+
+async function ensureLink(
+  db: Db,
+  roleIds: Map<string, string>,
+  roleName: string,
+  permissionId: string,
+  scope: 'owner' | 'member' | 'both' | null,
+  now: Date,
+): Promise<void> {
+  const roleId = roleIds.get(roleName);
+  if (!roleId) return;
+  const existing = await db.query.rolePermission.findFirst({
+    where: (t, { and }) =>
+      scope === null
+        ? and(eq(t.roleId, roleId), eq(t.permissionId, permissionId), isNull(t.scope))
+        : and(eq(t.roleId, roleId), eq(t.permissionId, permissionId), eq(t.scope, scope)),
+  });
+  if (existing) return;
+  await db.insert(rolePermission).values({
+    id: randomUUID(),
+    roleId,
+    permissionId,
+    scope,
+    createdAt: now,
+  });
 }

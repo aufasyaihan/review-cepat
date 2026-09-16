@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export class AppError extends Error {
   status: number;
   code: string;
@@ -27,6 +29,10 @@ export function toErrorResponse(err: unknown): Response {
       { error: { code: err.code, message: err.message } },
       { status: err.status },
     );
+  }
+  if (err instanceof z.ZodError) {
+    const message = err.issues[0]?.message ?? 'Invalid request';
+    return Response.json({ error: { code: 'VALIDATION', message } }, { status: 400 });
   }
   console.error('[api] unhandled error', err);
   return Response.json(

@@ -1,9 +1,10 @@
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { device, scanEvent } from '@/db/schema';
 import { getActiveOrganization } from '@/domains/merchant/server/permissions';
 import { AppError } from '@/lib/errors';
+import type { SessionUser } from '@/lib/session';
 
 export type AnalyticsOverview = {
   totalScans: number;
@@ -12,6 +13,8 @@ export type AnalyticsOverview = {
 };
 
 export type AnalyticsBreakdown = Array<{ value: string; scans: number }>;
+
+export type OverviewWindow = { from?: Date; to?: Date };
 
 const BREAKDOWN_COLUMNS = {
   browser: scanEvent.browser,
@@ -22,7 +25,7 @@ const BREAKDOWN_COLUMNS = {
 } as const;
 export type BreakdownDimension = keyof typeof BREAKDOWN_COLUMNS;
 
-/** Analytics are owner-only (SC-008); the owner sees every device in the org. */
+/** Org-owner guard shared by all analytics entry points (SC-008). */
 async function requireOwnerMembership(userId: string) {
   const membership = await getActiveOrganization(userId);
   if (membership?.role !== 'owner') {
@@ -31,41 +34,45 @@ async function requireOwnerMembership(userId: string) {
   return membership;
 }
 
-export async function overview(userId: string): Promise<AnalyticsOverview> {
-  const membership = await requireOwnerMembership(userId);
-  const db = getDb();
-  const owned = await db.query.device.findMany({
-    where: eq(device.organizationId, membership.organizationId),
-    columns: { id: true, slug: true, name: true },
-  });
-  const ids = owned.map((d) => d.id);
+function windowWhere(deviceIds: string[], window: OverviewWindow) {
+  const filters = [inArray(scanEvent.deviceId, deviceIds)];
+  if (window.from) filters.push(gte(scanEvent.createdAt, window.from));
+  if (window.to) filters.push(lte(scanEvent.createdAt, window.to));
+  return and(...filters);
+}
+
+async function aggregate(
+  db: ReturnType<typeof getDb>,
+  ids: string[],
+  allDevices: Array<{ id: string; slug: string; name: string }>,
+  window: OverviewWindow,
+): Promise<AnalyticsOverview> {
   if (ids.length === 0) {
     return { totalScans: 0, deviceScans: [], dailyScans: [] };
   }
 
-  const totalRows = await db
-    .select({ cnt: count() })
-    .from(scanEvent)
-    .where(inArray(scanEvent.deviceId, ids));
+  const where = windowWhere(ids, window);
+
+  const totalRows = await db.select({ cnt: count() }).from(scanEvent).where(where);
 
   const daily = await db
     .select({ day: sql<string>`DATE(created_at)`, cnt: count() })
     .from(scanEvent)
-    .where(inArray(scanEvent.deviceId, ids))
+    .where(where)
     .groupBy(sql`DATE(created_at)`)
     .orderBy(desc(sql`DATE(created_at)`));
 
   const perDevice = await db
     .select({ deviceId: scanEvent.deviceId, cnt: count() })
     .from(scanEvent)
-    .where(inArray(scanEvent.deviceId, ids))
+    .where(where)
     .groupBy(scanEvent.deviceId);
 
   const countMap = new Map(perDevice.map((r) => [r.deviceId, Number(r.cnt)]));
 
   return {
     totalScans: Number(totalRows[0]?.cnt ?? 0),
-    deviceScans: owned.map((d) => ({
+    deviceScans: allDevices.map((d) => ({
       deviceId: d.id,
       slug: d.slug,
       name: d.name,
@@ -73,6 +80,46 @@ export async function overview(userId: string): Promise<AnalyticsOverview> {
     })),
     dailyScans: daily.map((r) => ({ day: r.day, scans: Number(r.cnt) })),
   };
+}
+
+/** Owner scoped: aggregates only the caller's organization devices (FR-044). */
+export async function overview(
+  userId: string,
+  window: OverviewWindow = {},
+): Promise<AnalyticsOverview> {
+  const membership = await requireOwnerMembership(userId);
+  const db = getDb();
+  const owned = await db.query.device.findMany({
+    where: eq(device.organizationId, membership.organizationId),
+    columns: { id: true, slug: true, name: true },
+  });
+  return aggregate(
+    db,
+    owned.map((d) => d.id),
+    owned,
+    window,
+  );
+}
+
+/** Admin aggregate across ALL organizations (FR-044). ADMIN-guarded at the
+ * service level (defense in depth; the route also guards via requireApiUser). */
+export async function adminOverview(
+  user: Pick<SessionUser, 'id' | 'role'>,
+  window: OverviewWindow = {},
+): Promise<AnalyticsOverview> {
+  if (user.role !== 'ADMIN') {
+    throw new AppError(403, 'ANALYTICS_DENIED', 'Only admins can view analytics');
+  }
+  const db = getDb();
+  const allDevices = (await db.query.device.findMany({
+    columns: { id: true, slug: true, name: true },
+  })) as Array<{ id: string; slug: string; name: string }>;
+  return aggregate(
+    db,
+    allDevices.map((d) => d.id),
+    allDevices,
+    window,
+  );
 }
 
 export async function breakdown(

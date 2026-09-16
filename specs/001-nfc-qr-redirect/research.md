@@ -36,9 +36,12 @@ command input, the canonical architecture document, and the clarified spec
   at `app/api/auth/[...all]/route.ts`. Merchant = organization; roles `owner`
   (reseller) and `member` (sub-merchant) from the plugin's built-in roles. Platform
   admins are a separate `user.role = 'ADMIN'` claim and belong to no organization.
-  Authorization enforced in every domain's `server/permissions.ts`: owner-scoped
-  queries see all org devices; member-scoped queries see only devices where
-  `device.memberId = member.id` (FR-025/027, SC-008). Org plugin tables
+  Authorization is enforced through the normalized `master_role`/`permission`/
+  `role_permission` model in every domain's `server/permissions.ts`; `ADMIN` bypasses
+  all guard checks (FR-041); MERCHANT resolves its active org role (`owner`/`member`)
+  so scoped `role_permission` links gate owner-only vs member-only capability (FR-037).
+  Owner-scoped queries see all org devices; member-scoped queries see only devices
+  where `device.memberId = member.id` (FR-025/027, SC-008). Org plugin tables
   (`organization`, `member`, `invitation`) added via `npx @better-auth/cli migrate`.
 - **Rationale**: Constitution VII mandates Better Auth + RBAC; the user's clarified
   requirement is explicitly "integrate Better Auth's organization" — the plugin
@@ -118,8 +121,12 @@ command input, the canonical architecture document, and the clarified spec
 
 - **Decision**: Browser/device and referrer parsed server-side at scan time; country/city
   best-effort from IP geolocation; stored on the scan row; analytics domain aggregates
-  totals/daily/per-device for the **owner** only (sub-merchants denied — SC-008).
-- **Rationale**: FR-013/014/015; no client top-up on the redirect path.
+  totals/daily/per-device for the **owner** only (sub-merchants denied — SC-008), with
+  optional `from`/`to` date parameters; a separate **admin cross-merchant aggregate**
+  (`adminOverview(from?, to?)`) powers the admin `/dashboard` analytics with the
+  date-range picker (FR-044).
+- **Rationale**: FR-013/014/015; no client top-up on the redirect path; date filtering
+  stays in SQL so presets/custom ranges return only scans in the selected window.
 - **Alternatives considered**: client reporting beacon (extra hop, blockable), paid geo.
 
 ## 11. Deployment & CI
@@ -173,21 +180,66 @@ command input, the canonical architecture document, and the clarified spec
 
 - **Decision**: All roles (admin, reseller/owner, sub-merchant/member) share root-level
   paths — no role-specific URL prefixes, no nested route groups. Access and sidebar
-  navigation are driven by a project-owned `permission` table with one row per
-  endpoint/nav item: `path`, `label`, `icon`, `is_menu` (boolean — sidebar visibility),
-  and an allowed-roles field (`roles`: e.g. `['ADMIN']`, `['OWNER']`, `['OWNER','MEMBER']`).
-  The table is seeded by default (FR-037) with the correct rows per role. The `(dashboard)` group
-  layout queries `listNavForRole(role)` to render the sidebar; the proxy/layout calls
-  `can(role, path)` to reject access before rendering the page (FR-036).
-- **Rationale**: User-direct mandate: "navigation and endpoint will be seeded by default".
-  Centralised nav eliminates duplicated hardcoded NAV arrays in layout files; adding a
-  new endpoint is a seed row, not a code change. Permission enforcement at the
-  proxy/layout level catches direct URL navigation, not just sidebar clicks.
+  navigation are driven by a **normalized permission model** (Clarification
+  2026-09-16, FR-037): three tables — `master_role` (platform roles `ADMIN` and
+  `MERCHANT` only), `permission` (one row per nav/endpoint item: `path`, `label`,
+  `icon`, `is_menu`, `parent_id`, `sort`; NO role column), and `role_permission`
+  (join: `id`, `role_id`, `permission_id`, optional `scope` of `owner` | `member` |
+  `both` — so a single MERCHANT role row grants org-scoped permissions via scoped
+  links, replacing the legacy `MERCHANT:owner`/`MERCHANT:member` tokens and the
+  `permission.roles` JSON column). The model is seeded by default with the correct
+  links per role (admin → Dashboard/Devices/User management/Merchants/Settings;
+  reseller/owner → Dashboard/Devices/User management/Settings;
+  sub-merchant/member → Dashboard/Devices/Settings).
+- **ADMIN superuser**: `can()`, `requireApiPermission()`, and page guards return
+  allowed for an ADMIN user without any permission-table lookup (FR-041). ADMIN→
+  permission links are still seeded so the sidebar and `GET /api/permissions` render
+  every item for ADMIN from real rows — no special-casing in nav rendering.
+- **Client-side nav (FR-043)**: navigation data is fetched on the client via the
+  authenticated `GET /api/permissions` endpoint (FR-042); the sidebar renders a
+  phantom-ui skeleton while nav loads. `location/layout.tsx` MUST NOT be a dynamic
+  route or fetch navigation data server-side.
+- **Two list APIs** (FR-042): (1) authenticated `GET /api/permissions` — caller's own
+  permitted nav + API paths (drives sidebar and client gating, replaces the
+  server-side `listNavForRole`); (2) admin-only `GET /api/roles/:roleId/permissions` —
+  a role's permission mapping for permission administration and seed verification.
+  The `(dashboard)` group layout stays server-rendered but reads no nav data itself;
+  the proxy/layout calls `can(role, orgRole, path)` to reject access before rendering
+  the page (FR-036), with ADMIN bypass.
+- **Rationale**: User-direct mandate: "navigation and endpoint will be seeded by default",
+  then "create list api that can be accessed by each roles in database", normalized
+  into `master_role` + `role_permission` + `permission`, and "admin should never have a
+  permission check", plus "layout.tsx should never be a dynamic route — fetch nav data on
+  the client side with phantom-ui skeleton". Centralised nav eliminates duplicated
+  hardcoded NAV arrays; adding an endpoint is a seed link, not a code change; permission
+  enforcement at the proxy/guard level catches direct URL navigation, not just sidebar
+  clicks; ADMIN bypass fixes the actual defect where admin was denied merchant-only
+  endpoints (e.g. `/api/device/claim`).
 - **Alternatives considered**: hardcoded per-role NAV arrays (rejected — user mandated
-  seeded table), nested route groups with role prefixes (rejected — user explicitly asked
-  "separated not nested" then clarified "everything should be root paths").
+  seeded table), nested route groups with role prefixes (rejected — root paths only),
+  role-variant rows in `master_role` (option A — rejected for B: single MERCHANT row +
+  `scope` column), server-rendered nav in layout (rejected — FR-043 client-side fetch).
 
-## 15. Testing Framework
+## 15. Admin Dashboard Analytics & Date Filtering
+
+- **Decision**: The admin `/dashboard` renders analytical data aggregated across ALL
+  merchants' devices, filterable by a **date-range picker** (FR-044). The component is
+  ported from the reference project (`khitan-plus-hipnosis/components/ui/date-range-picker.tsx`):
+  a popover with preset ranges (today, yesterday, last 7/14/30 days, this month, last
+  month, this year) and a 2-month range calendar with reset/apply controls, driving an
+  analytics API that accepts `from`/`to` date query params. The existing owner
+  `overview()` gains optional `from`/`to`; a new `adminOverview(from?, to?)` aggregates
+  across organizations. Empty windows return zero-filled data; invalid ranges
+  (`from` > `to`, open-ended) are rejected (Edge Cases, Session 2026-09-16).
+- **Rationale**: User-direct mandate: "on the admin dashboard /dashboard should be
+  analytical data, create date-picker for filtering". Reusing the reference picker keeps
+  the preset/locale/UX identical; passing `from`/`to` to the service keeps filtering in
+  SQL rather than client-side.
+- **Alternatives considered**: client-side filtering of a full dump (rejected — unscalable),
+  date inputs without presets (rejected — mandated picker look), no admin aggregate
+  (rejected — requirement is all-merchant analytics).
+
+## 16. Testing Framework
 
 - **Decision**: Vitest for unit/component tests (React Testing Library, MSW), Playwright
   for e2e, 90% coverage gate (c8/V8 provider).

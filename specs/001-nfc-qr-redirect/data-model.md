@@ -123,10 +123,11 @@ One recorded interaction with a public device.
 ### permission
 
 An endpoint/nav-item row seeded by default. Controls which paths each role can access
-and which items appear in the sidebar (FR-037). Two row kinds:
+and which items appear in the sidebar (FR-037). Role assignments live in the
+`role_permission` join table, not on this table.
 
 - **Navigation rows**: `is_menu=true`, `parent_id=null`, `icon` set — appear in the
-  sidebar and gate pages in proxy.ts/layouts.
+  sidebar and gate pages in proxy.ts.
 - **API-endpoint rows**: `is_menu=false`, `parent_id` = the page row they serve,
   `path` = the endpoint (e.g. `/api/device`), `icon` null, dotted label
   (e.g. `api.create_device`) — gate access at the API layer (FR-037).
@@ -136,21 +137,34 @@ and which items appear in the sidebar (FR-037). Two row kinds:
   dotted `api.<action>` for API rows), `icon?` (lucide-react icon name, nav rows
   only), `is_menu` (boolean — true if it appears in the sidebar nav),
   `parent_id?` (nullable self-reference: for API rows, the id of the page row they
-  serve), `roles` (array of allowed role identifiers, e.g. `['ADMIN']`,
-  `['OWNER']`, `['OWNER','MEMBER']`), `sort` (int — nav order when is_menu=true;
-  0 for API rows), `createdAt`.
-- **Validation**: `path` unique and non-empty; `roles` non-empty; `is_menu` boolean;
+  serve), `sort` (int — nav order when is_menu=true; 0 for API rows), `createdAt`.
+- **Validation**: `path` unique and non-empty; `is_menu` boolean;
   API rows (`is_menu=false`) must set `parent_id` to an existing nav permission row.
-- **Relationships**: no FK references to business tables; `parent_id` is a
+- **Relationships**: `role_permission.role_id → permission.id`; `parent_id` is a
   self-reference; pure configuration table seeded via `db/seed.ts`.
-- **Seed strategy**: static rows inserted by the seed script; all three roles receive
-  their default nav (Admin: Dashboard/Devices/User management/Merchants/Settings;
-  Owner: Dashboard/Devices/User management/Settings; Member: Dashboard/Devices/Settings)
-  plus API-endpoint rows for every permissioned mutation/query route, each linked to its
-  serving page and labeled `api.<action>` (e.g. `api.create_device`).
-  The `(dashboard)/layout.tsx` sidebar calls `listNavForRole(role)` (domains/auth) to read
-  `is_menu=true` rows; the layout guard calls `can(role, path)` to deny access to
-  restricted endpoints before rendering.
+
+### master_role
+
+Canonical platform roles. Two rows seeded: `ADMIN` and `MERCHANT`.
+
+- **Fields**: `id` (uuid PK), `name` (unique; e.g. `ADMIN`, `MERCHANT`), `description?`.
+- **Seed strategy**: static rows inserted by the seed script.
+
+### role_permission
+
+Join table linking platform roles to permissions, with optional org-role scoping.
+
+- **Fields**: `id` (uuid PK), `role_id` (FK → `master_role.id`), `permission_id`
+  (FK → `permission.id`), `scope?` (`owner` | `member` | `both`/null — null means
+  "no scope restriction": MERCHANT always allowed; `owner` = MERCHANT only if the
+  user's active organization role is `owner`; same for `member`).
+- **Seed strategy**: static rows inserted by the seed script — one link per
+  (role, permission) pair; scoped links carry `owner` or `member` as appropriate.
+  Admin bypass is enforced in code (`can()` / page guards), so every ADMIN→permission
+  link is seeded but the runtime guard short-circuits before consulting the table.
+  MERCHANT→permission links (with or without `scope`) are the effective gate for
+  merchant requests. Layout sidebar and `GET /api/permissions` render from real
+  `role_permission` rows (no admin special-casing).
 
 ## State Transitions (device.status)
 

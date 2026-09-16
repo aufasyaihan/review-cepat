@@ -30,14 +30,18 @@ Public device resolution (in the `(redirect)` group) — see [public-scan.md](pu
 ### auth
 
 - `me()` — current session + role + active organization(s) (guards UI).
-- `listNavForRole(role, orgRole)` — sidebar items from `permission` rows where
-  `is_menu=true`, ordered by `sort` (FR-036/037). `orgRole` (`owner`/`member`, null
-  for admin) distinguishes the MERCHANT role; owner-only rows are encoded as
-  `MERCHANT:owner` tokens in the `roles` array.
-- `can(role, orgRole, path)` — true when the role has a matching `permission` row;
-  enforces page access in proxy.ts and `(dashboard)/layout.tsx` (FR-036) and API
-  access via `requireApiPermission(path)` in every guarded Server Action / route
-  handler (FR-037). API-endpoint rows use `is_menu=false`, `path` = the endpoint
+- `GET /api/permissions` (authenticated) — the caller's own permitted nav items
+  (`is_menu=true`) and API paths from `role_permission` links, ordered by `sort`
+  (FR-036/037/042). Rendered client-side into the sidebar with a phantom-ui skeleton;
+  `layout.tsx` never fetches nav server-side (FR-043). For ADMIN it returns every
+  permission row (admin links are seeded; guards additionally short-circuit).
+- `GET /api/roles/:roleId/permissions` (admin-only) — a role's permission mapping for
+  permission administration and seed verification (FR-042).
+- `can(role, orgRole, path)` — ADMIN always `true` (superuser, no DB lookup; FR-041);
+  otherwise true when a `role_permission` link matches the role and (when the link has
+  a `scope`) the orgRole. Enforces page access in proxy.ts (FR-036) and API access via
+  `requireApiPermission(path)` in every guarded Server Action / route handler (FR-037).
+  API-endpoint rows use `is_menu=false`, `path` = the endpoint
   (e.g. `/api/device/create`), a dotted label (`api.create_device`), and
   `parent_id` → the page row they serve (Clarification 2026-09-16).
 - (Better Auth client handles sign-in/sign-up/sign-out/session/org invitations.)
@@ -78,7 +82,10 @@ Public device resolution (in the `(redirect)` group) — see [public-scan.md](pu
 
 ### analytics
 
-- `overview()` — totals + per-day + per-device aggregate (owner only).
+- `overview(from?, to?)` — totals + per-day + per-device aggregate (owner only),
+  filtered by date range when `from`/`to` provided (FR-044).
+- `adminOverview(from?, to?)` — aggregates across ALL merchants' devices for the admin
+  dashboard date-filtered view (FR-044).
 - `breakdown(deviceId, dimension)` — browser/deviceType/country/city/referrer counts.
 
 ## Validation boundary

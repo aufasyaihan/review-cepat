@@ -7,34 +7,72 @@ vi.mock('@/db', () => ({
 vi.mock('drizzle-orm', async (importOriginal) => ({
   ...(await importOriginal<typeof import('drizzle-orm')>()),
   eq: (_lhs: unknown, rhs: unknown) => rhs,
+  isNull: () => null,
 }));
 
 import { getDb } from '@/db';
-import { ensurePermissions, PERMISSION_ROWS } from '@/db/seed/permissions';
+import { ensurePermissions, MASTER_ROLE_ROWS, PERMISSION_ROWS } from '@/db/seed/permissions';
 
 const getDbMock = vi.mocked(getDb);
 
+type Row = Record<string, unknown>;
+
+const tableName = (t: object) => {
+  interface NamedTable {
+    [key: symbol]: string;
+  }
+  return (t as NamedTable)[Symbol.for('drizzle:Name')] ?? '';
+};
+
 function makeDb() {
-  const inserted: Array<Record<string, unknown>> = [];
-  const existing = new Map<string, string>();
-  const db = {
-    query: {
-      permission: {
-        findFirst: vi.fn(async ({ where }: { where: unknown }) => {
-          const path = where as string;
-          const id = existing.get(path);
-          return id ? { id } : undefined;
-        }),
-      },
+  const perms: Row[] = [];
+  const roles: Row[] = [];
+  const links: Row[] = [];
+  const permExisting = new Map<string, string>();
+  const roleExisting = new Map<string, string>();
+  const linkExisting = new Set<string>();
+
+  const findFirst = vi.fn(async ({ where }: { where?: unknown }) => {
+    if (typeof where === 'function') {
+      const eqOp = (_l: unknown, r: unknown) => r;
+      const isNullOp = () => null;
+      const andOp = (...args: unknown[]) => args;
+      const resolved = (where as (t: object, ops: object) => unknown)(
+        {},
+        {
+          and: andOp,
+          eq: eqOp,
+          isNull: isNullOp,
+        },
+      ) as unknown[];
+      const key = resolved.map((v) => String(v ?? '')).join('|');
+      return linkExisting.has(key) ? { id: key } : undefined;
+    }
+    const id = permExisting.get(where as string) ?? roleExisting.get(where as string);
+    return id ? { id } : undefined;
+  });
+
+  const insert = vi.fn((t: object) => ({
+    values: async (row: Row) => {
+      const name = tableName(t);
+      if (name === 'permission') {
+        perms.push(row);
+        permExisting.set(row.path as string, row.id as string);
+      } else if (name === 'master_role') {
+        roles.push(row);
+        roleExisting.set(row.name as string, row.id as string);
+      } else if (name === 'role_permission') {
+        links.push(row);
+        linkExisting.add(`${row.roleId}|${row.permissionId}|${String(row.scope ?? '')}`);
+      }
     },
-    insert: vi.fn().mockReturnValue({
-      values: async (row: Record<string, unknown>) => {
-        inserted.push(row);
-        existing.set(row.path as string, row.id as string);
-      },
-    }),
+  }));
+
+  const db = {
+    query: { permission: { findFirst }, masterRole: { findFirst }, rolePermission: { findFirst } },
+    insert,
   };
-  return { db, inserted, existing };
+  return { db: db as never, perms, roles, links };
 }
 
 beforeEach(() => {
@@ -42,18 +80,29 @@ beforeEach(() => {
 });
 
 describe('ensurePermissions', () => {
-  it('seeds nav + API rows with parentId resolved from the serving page', async () => {
-    const { db, inserted } = makeDb();
+  it('seeds master_role with ADMIN and MERCHANT only', async () => {
+    const { db, roles } = makeDb();
     getDbMock.mockReturnValue(db as never);
 
     await ensurePermissions(db as never);
 
-    const navRows = inserted.filter((r) => r.isMenu === true);
-    const apiRows = inserted.filter((r) => r.isMenu === false);
+    expect(MASTER_ROLE_ROWS).toEqual(['ADMIN', 'MERCHANT']);
+    expect(roles.map((r) => r.name).sort()).toEqual(['ADMIN', 'MERCHANT']);
+  });
+
+  it('seeds nav + API rows with parentId resolved from the serving page and no roles column', async () => {
+    const { db, perms } = makeDb();
+    getDbMock.mockReturnValue(db as never);
+
+    await ensurePermissions(db as never);
+
+    const navRows = perms.filter((r) => r.isMenu === true);
+    const apiRows = perms.filter((r) => r.isMenu === false);
 
     expect(navRows.length).toBeGreaterThanOrEqual(6);
-    expect(apiRows.length).toBeGreaterThanOrEqual(11);
+    expect(apiRows.length).toBeGreaterThanOrEqual(13);
     expect(apiRows.every((r) => r.icon === null)).toBe(true);
+    expect(perms.every((r) => !('roles' in r))).toBe(true);
 
     const createDevice = apiRows.find((r) => r.path === '/api/device/create');
     expect(createDevice?.label).toBe('api.create_device');
@@ -62,23 +111,30 @@ describe('ensurePermissions', () => {
 
     const devicesNav = navRows.find((r) => r.path === '/devices');
     expect(devicesNav?.id).toBe(parentId);
-
-    const deleted = apiRows.find((r) => r.path === '/api/device/delete');
-    expect(deleted?.parentId).toBe(parentId);
-
-    const invite = apiRows.find((r) => r.path === '/api/member/invite');
-    const userMgmt = navRows.find((r) => r.path === '/user-management');
-    expect(invite?.parentId).toBe(userMgmt?.id);
   });
 
-  it('is idempotent by path: existing rows are not re-inserted', async () => {
-    const { db, inserted } = makeDb();
+  it('links ADMIN (null scope) for admin-accessible rows and MERCHANT for every row', async () => {
+    const { db, links } = makeDb();
     getDbMock.mockReturnValue(db as never);
 
     await ensurePermissions(db as never);
-    const firstCount = inserted.length;
+
+    // Every permission gets a MERCHANT link; ADMIN links exist only where the
+    // seed intentionally grants admin nav/access (never /devices/claim etc.).
+    expect(links).toHaveLength(PERMISSION_ROWS.length + 16);
+    expect(links.some((l) => l.scope === 'owner')).toBe(true);
+  });
+
+  it('is idempotent by (role, permission, scope): existing rows are not re-inserted', async () => {
+    const { db, perms, roles, links } = makeDb();
+    getDbMock.mockReturnValue(db as never);
+
     await ensurePermissions(db as never);
-    expect(inserted.length).toBe(firstCount);
+    const counts = { perms: perms.length, roles: roles.length, links: links.length };
+    await ensurePermissions(db as never);
+    expect(perms.length).toBe(counts.perms);
+    expect(roles.length).toBe(counts.roles);
+    expect(links.length).toBe(counts.links);
   });
 
   it('skips parentId when the parent page has no row yet (defensive)', async () => {
@@ -88,17 +144,16 @@ describe('ensurePermissions', () => {
       label: 'api.x',
       icon: '',
       isMenu: false,
-      roles: ['ADMIN'],
       sort: 0,
       parentPath: '/never-exists',
     });
 
-    const { db, inserted } = makeDb();
+    const { db, perms } = makeDb();
     getDbMock.mockReturnValue(db as never);
     await ensurePermissions(db as never);
 
-    expect(inserted).toHaveLength(1);
-    expect(inserted[0].parentId).toBeNull();
+    const apiX = perms.find((r) => r.path === '/api/x');
+    expect(apiX?.parentId).toBeNull();
     (PERMISSION_ROWS as Array<(typeof PERMISSION_ROWS)[number]>).splice(
       0,
       PERMISSION_ROWS.length,

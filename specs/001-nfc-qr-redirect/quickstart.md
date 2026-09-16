@@ -20,7 +20,7 @@ npx @better-auth/cli migrate        # org plugin tables (organization/member/inv
 npm run db:generate                 # squash schema -> migrations (already committed)
 npm run db:migrate                  # apply migrations to MySQL
 npm run db:seed                     # ADMIN + reseller org (owner) + sub-merchant + devices
-                                    # + permission table rows (FR-037, sidebar/nav for all roles)
+                                    # + master_role/permission/role_permission rows (FR-037, sidebar/nav for all roles)
 npm run dev                         # start app (http://localhost:3000)
 ```
 
@@ -106,14 +106,30 @@ CI runs: `npm run lint`, `npm run typecheck`, `npm run test`, `npm run coverage`
 1. Logged in as the owner, claim a second device via claim code from the dashboard.
 2. **Expect**: device added to the reseller's org without a separate login step (toast).
 
+### Scenario 10 — Admin dashboard analytics with date-range filter (FR-044)
+
+1. Log in as ADMIN, open `/dashboard`.
+2. **Expect**: analytics section showing aggregated data across ALL merchants' devices
+   (total scans, per-device, daily scans). Date-range picker is visible (presets panel +
+   2-month calendar, reset/apply buttons).
+3. Select "Last 7 days" preset → totals and daily/per-device breakdowns update to scans
+   in that window only; date range shown on the picker button.
+4. Open the picker, clear the range → totals return to all-time.
+5. Enter an invalid range (`from` after `to`) → clear error message, no crash.
+6. Sidebar nav is rendered client-side from `GET /api/permissions` with a phantom-ui
+   skeleton while loading; `layout.tsx` performs no fetch (FR-043).
+7. `GET /api/roles/:roleId/permissions` (as admin) returns the full permission mapping
+   for any role — seed can be verified against this endpoint (FR-042).
+
 ## Playwright coverage
 
 - Happy path: admin create+bind → accountless setup → scan → owner analytics
   (scenarios 2–4, 7).
 - Org flows: sub-merchant register-with-code, isolation, reset scopes, multi-path
   claim (scenarios 5–9).
+- Admin analytics: scenario 10 (date-range filter, sidebar skeleton, list APIs).
 
 ## Done when
 
-Scenarios 1–9 pass locally with `npm run coverage` ≥ 90% and `npx playwright test`
+Scenarios 1–10 pass locally with `npm run coverage` ≥ 90% and `npx playwright test`
 green — the same suite CI runs on push/PR.
