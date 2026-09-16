@@ -26,7 +26,7 @@ import {
 import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permissions';
 import { assignDevice, unassignDevice } from '@/domains/merchant/server/service';
 import { auth } from '@/lib/auth';
-import { requireApiUser } from '@/lib/session';
+import { requireApiPermission, requireApiUser } from '@/lib/session';
 
 const inviteMember = (auth.api as unknown as { inviteMember: ReturnType<typeof vi.fn> })
   .inviteMember;
@@ -139,5 +139,74 @@ describe('member actions (owner-gated)', () => {
     const result = await unassignDeviceAction('d1');
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe('Could not unassign device');
+  });
+});
+
+describe('member actions (admin)', () => {
+  beforeEach(() => {
+    vi.mocked(requireApiPermission).mockResolvedValue({ id: 'admin1', role: 'ADMIN' } as never);
+  });
+
+  it('invites into the organization the admin specifies', async () => {
+    const result = await inviteMemberAction({
+      email: 'new@x.com',
+      role: 'member',
+      organizationId: 'org-9',
+    });
+    expect(result.ok).toBe(true);
+    expect(inviteMember).toHaveBeenCalledWith({
+      body: { email: 'new@x.com', role: 'member', organizationId: 'org-9' },
+    });
+  });
+
+  it('rejects invite when the admin supplies no organizationId', async () => {
+    const result = await inviteMemberAction({ email: 'new@x.com', role: 'member' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('organization');
+    expect(inviteMember).not.toHaveBeenCalled();
+  });
+
+  it('assigns a device in the organization the admin specifies', async () => {
+    vi.mocked(assignDevice).mockResolvedValue(undefined as never);
+    const result = await assignDeviceAction('d1', 'm1', 'org-9');
+    expect(result.ok).toBe(true);
+    expect(assignDevice).toHaveBeenCalledWith('d1', 'm1', 'org-9');
+  });
+
+  it('rejects assign when the admin supplies no organizationId', async () => {
+    const result = await assignDeviceAction('d1', 'm1');
+    expect(result.ok).toBe(false);
+    expect(assignDevice).not.toHaveBeenCalled();
+  });
+
+  it('unassigns a device in the organization the admin specifies', async () => {
+    vi.mocked(unassignDevice).mockResolvedValue(undefined as never);
+    const result = await unassignDeviceAction('d1', 'org-9');
+    expect(result.ok).toBe(true);
+    expect(unassignDevice).toHaveBeenCalledWith('d1', 'org-9');
+  });
+
+  it('rejects unassign when the admin supplies no organizationId', async () => {
+    const result = await unassignDeviceAction('d1');
+    expect(result.ok).toBe(false);
+    expect(unassignDevice).not.toHaveBeenCalled();
+  });
+});
+
+describe('member actions (owner cannot spoof another org)', () => {
+  beforeEach(() => {
+    // The admin describe block above overrides requireApiPermission's
+    // resolved value, and vi.clearAllMocks() (in the top-level beforeEach)
+    // clears call history, not that implementation — so it must be reset
+    // back to the MERCHANT owner here or this test would flakily inherit
+    // whatever role ran last.
+    vi.mocked(requireApiPermission).mockResolvedValue({ id: 'u1', role: 'MERCHANT' } as never);
+  });
+
+  it("ignores a client-supplied organizationId and uses the caller's own org", async () => {
+    vi.mocked(assignDevice).mockResolvedValue(undefined as never);
+    const result = await assignDeviceAction('d1', 'm1', 'someone-elses-org');
+    expect(result.ok).toBe(true);
+    expect(assignDevice).toHaveBeenCalledWith('d1', 'm1', 'org-1');
   });
 });
