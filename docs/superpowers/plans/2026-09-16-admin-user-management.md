@@ -251,12 +251,18 @@ git commit -m "feat: add cross-org member queries for admin user management"
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `tests/unit/merchant/member-actions.test.ts`, inside (or after) the existing `describe('member actions (owner-gated)', ...)` block:
+Add to `tests/unit/merchant/member-actions.test.ts`, inside (or after) the existing `describe('member actions (owner-gated)', ...)` block.
+
+**Important:** the production code in `member-actions.ts` gates through `requireApiPermission`, not `requireApiUser` (`requireApiUser` isn't even imported there — it's a vestigial mock in this test file's `vi.mock('@/lib/session', ...)` factory). The file's top-level `beforeEach` only overrides `requireApiUser`'s resolved value; `requireApiPermission`'s resolved value comes from the `vi.mock` factory (`{ id: 'u1', role: 'MERCHANT' }`) and is never reset by `vi.clearAllMocks()` (that clears call history, not the mock implementation), so it stays `MERCHANT` for every test unless a test overrides it directly. Add `requireApiPermission` to this file's import line from `@/lib/session` (alongside the existing `requireApiUser` import) so the new tests can override it:
+
+```ts
+import { requireApiPermission, requireApiUser } from '@/lib/session';
+```
 
 ```ts
 describe('member actions (admin)', () => {
   beforeEach(() => {
-    vi.mocked(requireApiUser).mockResolvedValue({ id: 'admin1', role: 'ADMIN' } as never);
+    vi.mocked(requireApiPermission).mockResolvedValue({ id: 'admin1', role: 'ADMIN' } as never);
   });
 
   it('invites into the organization the admin specifies', async () => {
