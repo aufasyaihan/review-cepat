@@ -40,7 +40,7 @@ export default async function MemberDetailPage({
 
   const queryClient = getQueryClient();
   await queryClient.prefetchQuery({
-    queryKey: deviceKeys.lists(),
+    queryKey: deviceKeys.lists(membership.organizationId),
     queryFn: () => listVisible(membership),
   });
 

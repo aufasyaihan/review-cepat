@@ -320,7 +320,17 @@ async function memberDeviceCounts(): Promise<Map<string, number>> {
 }
 
 function sortOwnerFirst(members: MemberWithUser[]): MemberWithUser[] {
-  return members.sort((a, b) => (a.role === 'owner' ? -1 : b.role === 'owner' ? 1 : 0));
+  return members.sort((a, b) => (a.role === b.role ? 0 : a.role === 'owner' ? -1 : 1));
+}
+
+/** Admin cross-org view: group by organization (alpha), owner-first within each group. */
+function sortByOrgThenOwnerFirst(members: MemberWithUser[]): MemberWithUser[] {
+  return members.sort((a, b) => {
+    const orgCompare = a.organizationName.localeCompare(b.organizationName);
+    if (orgCompare !== 0) return orgCompare;
+    if (a.role === b.role) return 0;
+    return a.role === 'owner' ? -1 : 1;
+  });
 }
 
 /** Owner view: every member of an organization with assigned-device counts. */
@@ -337,7 +347,9 @@ export async function listMembers(organizationId: string): Promise<MemberWithUse
 export async function listAllMembers(): Promise<MemberWithUser[]> {
   const rows = await getDb().query.member.findMany({ with: { user: true, organization: true } });
   const countByMember = await memberDeviceCounts();
-  return sortOwnerFirst(rows.map((r) => toMemberWithUser(r, countByMember.get(r.id) ?? 0)));
+  return sortByOrgThenOwnerFirst(
+    rows.map((r) => toMemberWithUser(r, countByMember.get(r.id) ?? 0)),
+  );
 }
 
 /** Admin view: a single member in any organization, for the detail page. */

@@ -191,6 +191,51 @@ describe('listAllMembers', () => {
     });
   });
 
+  it('groups by organization (alpha) and sorts owner-before-member within each group', async () => {
+    q('member').findMany.mockResolvedValue([
+      {
+        id: 'm-member-b',
+        organizationId: 'org-b',
+        userId: 'u4',
+        role: 'member',
+        organization: { id: 'org-b', name: 'Org B', slug: 'org-b' },
+        user: { id: 'u4', name: 'Member B', email: 'memberb@acme.io' },
+      },
+      {
+        id: 'm-owner-b',
+        organizationId: 'org-b',
+        userId: 'u3',
+        role: 'owner',
+        organization: { id: 'org-b', name: 'Org B', slug: 'org-b' },
+        user: { id: 'u3', name: 'Owner B', email: 'ownerb@acme.io' },
+      },
+      {
+        id: 'm-member-a',
+        organizationId: 'org-a',
+        userId: 'u2',
+        role: 'member',
+        organization: { id: 'org-a', name: 'Org A', slug: 'org-a' },
+        user: { id: 'u2', name: 'Member A', email: 'membera@acme.io' },
+      },
+      {
+        id: 'm-owner-a',
+        organizationId: 'org-a',
+        userId: 'u1',
+        role: 'owner',
+        organization: { id: 'org-a', name: 'Org A', slug: 'org-a' },
+        user: { id: 'u1', name: 'Owner A', email: 'ownera@acme.io' },
+      },
+    ]);
+
+    const members = await listAllMembers();
+    expect(members.map((m) => m.id)).toEqual([
+      'm-owner-a',
+      'm-member-a',
+      'm-owner-b',
+      'm-member-b',
+    ]);
+  });
+
   it('returns an empty list when there are no members anywhere', async () => {
     const members = await listAllMembers();
     expect(members).toEqual([]);

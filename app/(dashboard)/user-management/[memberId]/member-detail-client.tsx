@@ -31,19 +31,19 @@ export function MemberDetailClient({
   member: MemberWithUser;
   organizationId: string;
 }) {
-  const { data: devices } = useSuspenseQuery(deviceQueries.list());
+  const { data: devices } = useSuspenseQuery(deviceQueries.list(organizationId));
 
   const assign = useAction(
     (args: { deviceId: string; memberId: string }) =>
       assignDeviceAction(args.deviceId, args.memberId, organizationId),
     {
       successMsg: 'Device assigned',
-      keys: [deviceKeys.lists()],
+      keys: [deviceKeys.lists(organizationId)],
     },
   );
   const unassign = useAction((deviceId: string) => unassignDeviceAction(deviceId, organizationId), {
     successMsg: 'Device unassigned',
-    keys: [deviceKeys.lists()],
+    keys: [deviceKeys.lists(organizationId)],
   });
 
   const assigned = devices.filter((d) => d.memberId === member.id);
