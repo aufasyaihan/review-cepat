@@ -25,3 +25,37 @@ test.describe('owner dashboard', () => {
     await expect(page.getByText('Single Link Counter')).toBeVisible();
   });
 });
+
+// US: admin cross-org user management (db/seed/e2e.ts: admin@e2e.local is
+// ADMIN; E2E Shop is owned by merchant@e2e.local with member sub@e2e.local).
+test.describe('admin user management', () => {
+  test('admin reaches /user-management without being redirected and sees members from every org', async ({
+    page,
+  }) => {
+    await page.goto('/login');
+    await page.getByLabel('Email').fill('admin@e2e.local');
+    await page.getByLabel('Password').fill('E2e-admin-123');
+    await page.getByRole('button', { name: 'Log in' }).click();
+    await page.waitForURL('**/dashboard');
+
+    await page.getByRole('link', { name: 'User management' }).first().click();
+    await expect(page).toHaveURL(/\/user-management$/);
+    await expect(page.getByRole('heading', { name: 'User management' })).toBeVisible();
+    await expect(page.getByText('E2E Merchant')).toBeVisible();
+    await expect(page.getByText('E2E Sub', { exact: true })).toBeVisible();
+    await expect(page.getByText('E2E Shop').first()).toBeVisible();
+  });
+
+  test('admin can filter members by organization', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Email').fill('admin@e2e.local');
+    await page.getByLabel('Password').fill('E2e-admin-123');
+    await page.getByRole('button', { name: 'Log in' }).click();
+    await page.waitForURL('**/dashboard');
+    await page.goto('/user-management');
+
+    await page.getByLabel('Filter by organization').click();
+    await page.getByRole('option', { name: 'E2E Shop' }).click();
+    await expect(page.getByText('E2E Sub', { exact: true })).toBeVisible();
+  });
+});
