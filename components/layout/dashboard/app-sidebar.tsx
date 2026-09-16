@@ -84,9 +84,7 @@ export function AppSidebar({
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="flex shrink-0 p-2 items-center justify-center rounded-md bg-primary/10 border border-primary text-xs font-bold text-primary-foreground">
-            <Store className="text-primary" />
-          </div>
+          <img src="/logo_transparent.png" alt="ReviewCepat Logo" className="h-10 aspect-square" />
           <div className="min-w-0">
             <p className="truncate text-kg font-semibold">
               Review<span className="text-primary">Cepat</span>

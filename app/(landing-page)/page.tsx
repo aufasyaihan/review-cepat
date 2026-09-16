@@ -5,14 +5,14 @@ import { GridBackground } from '@/components/layout/grid-background';
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'NFC Platform — NFC & QR Redirect SaaS',
+  title: 'ReviewCepat - Quick Review for merchants',
   description:
-    'Turn physical NFC tags and QR codes into instant redirects to Google Reviews and social links, with scan analytics.',
+    'Quickly collect and manage reviews for your business with our easy-to-use platform.',
   alternates: { canonical: '/' },
   openGraph: {
-    title: 'NFC Platform — NFC & QR Redirect SaaS',
+    title: 'ReviewCepat - Quick Review for merchants',
     description:
-      'Turn physical NFC tags and QR codes into instant redirects to Google Reviews and social links, with scan analytics.',
+      'Quickly collect and manage reviews for your business with our easy-to-use platform.',
     type: 'website',
   },
 };
@@ -61,9 +61,6 @@ export default function HomePage() {
           <Button render={<Link href="/register" />} nativeButton={false} size="lg">
             Get started
           </Button>
-          <Button render={<Link href="/login" />} nativeButton={false} variant="outline" size="lg">
-            Log in
-          </Button>
         </div>
       </section>
 
@@ -88,6 +85,14 @@ export default function HomePage() {
           Get started
         </Button>
       </section>
+
+      <footer>
+        <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 py-20 text-center">
+          <span className="text-sm text-muted-foreground">
+            &copy; {new Date().getFullYear()} ReviewCepat. All rights reserved.
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }
