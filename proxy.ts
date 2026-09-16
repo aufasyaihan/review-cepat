@@ -15,11 +15,18 @@ import { auth } from '@/lib/auth';
  */
 export async function proxy(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
+  const pathname = request.nextUrl.pathname;
+
+  if (pathname === '/login') {
+    return session
+      ? NextResponse.redirect(new URL('/dashboard', request.url))
+      : NextResponse.next();
+  }
+
   if (!session) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  const pathname = request.nextUrl.pathname;
   // Legacy groups stay guarded by their own layouts until Phase 6 removes them;
   // they have no permission rows yet while they still serve live routes.
   if (pathname.startsWith('/admin') || pathname.startsWith('/analytics')) {
@@ -38,6 +45,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/login',
     '/dashboard/:path*',
     '/devices/:path*',
     '/analytics/:path*',

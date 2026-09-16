@@ -1,4 +1,5 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
+
 import { deviceKeys } from '@/domains/device/api/queries';
 import { getVisible } from '@/domains/device/server/service';
 import { getQueryClient } from '@/lib/query-client';

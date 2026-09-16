@@ -5,15 +5,17 @@ async function loginAsAdmin(page: import('@playwright/test').Page) {
   await page.getByLabel('Email').fill('admin@e2e.local');
   await page.getByLabel('Password').fill('E2e-admin-123');
   await page.getByRole('button', { name: 'Log in' }).click();
-  await page.waitForURL('**/admin');
+  await page.waitForURL('**/dashboard');
 }
 
-// US3 — admin creates a device and sees the one-time claim code.
+// US3/US6 — admin creates a device (via the /devices inventory dialog) and sees
+// the one-time claim code; admin reset clears the organization binding.
 test.describe('admin device management', () => {
   test('creates a device and shows the one-time claim code', async ({ page }) => {
     await loginAsAdmin(page);
 
-    await page.goto('/admin/devices/new');
+    await page.goto('/devices');
+    await page.getByRole('button', { name: 'New device' }).click();
     await page.getByLabel('Device name').fill('POS Counter');
     await page.getByRole('button', { name: 'Create device' }).click();
 
@@ -24,14 +26,22 @@ test.describe('admin device management', () => {
 
   test('admin reset clears the organization binding (FR-028)', async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto('/admin/devices');
-    await expect(page.getByRole('heading', { name: 'Device inventory' })).toBeVisible();
+    await page.goto('/devices');
 
-    // Reset the register-target device and confirm via toast.
-    await page.getByRole('row', { name: /Register Target Counter/ }).getByRole('button', {
+    // Reset the reset-target device and confirm via toast. Uses the dedicated
+    // e2e-reset-target device so resetting never breaks the register flow
+    // (e2e-register / E2EREGIC1).
+    await page.getByRole('row', { name: /Reset Target Counter/ }).getByRole('button', {
       name: 'Reset',
     }).click();
-    await page.getByRole('button', { name: 'Reset' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Reset' }).click();
     await expect(page.getByText(/organization cleared/i)).toBeVisible();
+  });
+
+  test('signed-in user is bounced back to /dashboard from /login', async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.goto('/login');
+    await page.waitForURL('**/dashboard');
+    await expect(page.getByText(/welcome/i)).toBeVisible();
   });
 });

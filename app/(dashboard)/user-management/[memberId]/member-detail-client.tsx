@@ -8,6 +8,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import DataTable from '@/components/ui/data-table/data-table';
 import { DataTableColumnHeader } from '@/components/ui/data-table/data-table-header';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { deviceKeys, deviceQueries } from '@/domains/device/api/queries';
 import type { DeviceSummary } from '@/domains/device/types';
 import { assignDeviceAction, unassignDeviceAction } from '@/domains/merchant/server/member-actions';
@@ -48,14 +58,37 @@ export function MemberDetailClient({ member }: { member: MemberWithUser; organiz
       header: '',
       cell: ({ row }) => (
         <div className="text-right">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={unassign.isPending}
-            onClick={() => unassign.mutate(row.original.id)}
-          >
-            Unassign
-          </Button>
+          <Dialog>
+            <DialogTrigger
+              render={<Button variant="outline" size="sm" disabled={unassign.isPending} />}
+            >
+              Unassign
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  Unassign {row.original.name} from {member.name}?
+                </DialogTitle>
+                <DialogDescription>
+                  This device returns to the pool of unassigned devices.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+                <DialogClose
+                  render={
+                    <Button
+                      variant="destructive"
+                      disabled={unassign.isPending}
+                      onClick={() => unassign.mutate(row.original.id)}
+                    />
+                  }
+                >
+                  {unassign.isPending ? 'Unassigning…' : 'Unassign'}
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       ),
     },
@@ -71,13 +104,36 @@ export function MemberDetailClient({ member }: { member: MemberWithUser; organiz
       header: '',
       cell: ({ row }) => (
         <div className="text-right">
-          <Button
-            size="sm"
-            disabled={assign.isPending}
-            onClick={() => assign.mutate({ deviceId: row.original.id, memberId: member.id })}
-          >
-            Assign
-          </Button>
+          <Dialog>
+            <DialogTrigger render={<Button size="sm" disabled={assign.isPending} />}>
+              Assign
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  Assign {row.original.name} to {member.name}?
+                </DialogTitle>
+                <DialogDescription>
+                  {member.name} will be able to manage and configure this device.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+                <DialogClose
+                  render={
+                    <Button
+                      disabled={assign.isPending}
+                      onClick={() =>
+                        assign.mutate({ deviceId: row.original.id, memberId: member.id })
+                      }
+                    />
+                  }
+                >
+                  {assign.isPending ? 'Assigning…' : 'Assign'}
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       ),
     },

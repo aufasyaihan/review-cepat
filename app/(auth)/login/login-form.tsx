@@ -14,7 +14,7 @@ export function LoginForm() {
   const router = useRouter();
   const login = useAction(signInAction, {
     successMsg: 'Signed in',
-    onSuccess: (result) => router.push(result.role === 'ADMIN' ? '/admin' : '/dashboard'),
+    onSuccess: () => router.push('/dashboard'),
   });
 
   const form = useForm({
@@ -25,8 +25,8 @@ export function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Welcome back</CardTitle>
-        <CardDescription>Sign in to manage your devices.</CardDescription>
+        <CardTitle className="text-base text-center">Welcome back</CardTitle>
+        <CardDescription className="text-center">Sign in to manage your devices.</CardDescription>
       </CardHeader>
       <CardContent>
         <form

@@ -40,14 +40,6 @@ export const PERMISSION_ROWS: Array<{
     sort: 200,
   },
   {
-    path: '/devices/new',
-    label: 'New device',
-    icon: 'Plus',
-    isMenu: true,
-    roles: ['ADMIN'],
-    sort: 300,
-  },
-  {
     path: '/devices/claim',
     label: 'Claim a device',
     icon: 'Tag',
@@ -87,7 +79,7 @@ export const PERMISSION_ROWS: Array<{
     isMenu: false,
     roles: ['ADMIN'],
     sort: 0,
-    parentPath: '/devices/new',
+    parentPath: '/devices',
   },
   {
     path: '/api/device/claim',
@@ -137,6 +129,15 @@ export const PERMISSION_ROWS: Array<{
   {
     path: '/api/device/disable',
     label: 'api.disable_device',
+    icon: '',
+    isMenu: false,
+    roles: ['ADMIN'],
+    sort: 0,
+    parentPath: '/devices',
+  },
+  {
+    path: '/api/device/delete',
+    label: 'api.delete_device',
     icon: '',
     isMenu: false,
     roles: ['ADMIN'],

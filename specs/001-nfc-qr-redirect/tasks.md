@@ -140,13 +140,13 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 
 ### Tests for User Story 5
 
-- [ ] T026 [P] [US5] E2E: sub-merchant access control — member sees only assigned devices, `/user-management` denied in `tests/e2e/sub-merchant-access.spec.ts` (update paths)
-- [ ] T027 [P] [US5] Unit tests for member-scoped `listVisible()` in `domains/device/__tests__/`: member → devices where `device.memberId = member.id`; never org-wide (FR-025/027)
+- [x] T026 [P] [US5] E2E: sub-merchant access control — member sees only assigned devices, `/user-management` denied in `tests/e2e/sub-merchant-access.spec.ts` (update paths)
+- [x] T027 [P] [US5] Unit tests for member-scoped `listVisible()` in `domains/device/__tests__/`: member → devices where `device.memberId = member.id`; never org-wide (FR-025/027)
 
 ### Implementation for User Story 5
 
-- [ ] T028 [P] [US5] Migrate `app/(merchant)/devices/page.tsx` + `app/(merchant)/(sub-merchant)/devices/*` → `app/(dashboard)/devices/page.tsx` honoring role: owner sees all (US4), member sees only assigned; row actions limited to configure/publish/unpublish for members — toasts + skeleton + empty state
-- [ ] T029 [US5] Delete legacy `app/(merchant)/(sub-merchant)/` directory tree entirely after migration; confirm the shared `(dashboard)` layout no longer references the nested group
+- [x] T028 [P] [US5] Migrate `app/(merchant)/devices/page.tsx` + `app/(merchant)/(sub-merchant)/devices/*` → `app/(dashboard)/devices/page.tsx` honoring role: owner sees all (US4), member sees only assigned; row actions limited to configure/publish/unpublish for members — toasts + skeleton + empty state
+- [x] T029 [US5] Delete legacy `app/(merchant)/(sub-merchant)/` directory tree entirely after migration; confirm the shared `(dashboard)` layout no longer references the nested group
 
 **Checkpoint**: Member isolation enforced at root paths; nested group deleted.
 
@@ -160,14 +160,14 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 
 ### Tests for User Story 6
 
-- [ ] T030 [P] [US6] Unit tests: admin device create + slug uniqueness + disable/enable in `domains/device/__tests__/`; admin reset scope (clears `organizationId`) in `domains/device/__tests__/` (data-model.md `device.slug`: `unique, lowercase alphanumeric + hyphen, 6–32 chars, never reused`)
-- [ ] T031 [P] [US6] E2E: admin create+assign, disable, admin reset in `tests/e2e/admin-devices.spec.ts` (update paths from legacy `app/(admin)/admin/devices/`)
+- [x] T030 [P] [US6] Unit tests: admin device create + slug uniqueness + disable/enable in `domains/device/__tests__/`; admin reset scope (clears `organizationId`) in `domains/device/__tests__/` (data-model.md `device.slug`: `unique, lowercase alphanumeric + hyphen, 6–32 chars, never reused`)
+- [x] T031 [P] [US6] E2E: admin create+assign, disable, admin reset in `tests/e2e/admin-devices.spec.ts` (update paths from legacy `app/(admin)/admin/devices/`)
 
 ### Implementation for User Story 6
 
-- [ ] T032 [P] [US6] Migrate `app/(admin)/admin/devices/new/page.tsx` → `app/(dashboard)/devices/new/page.tsx` (root `/devices/new`): create + assign to reseller org, shows claim code once, toasts, skeleton; admin-only via `permission` (FR-037)
-- [ ] T033 [P] [US6] Migrate `app/(admin)/admin/devices/page.tsx` → `app/(dashboard)/devices/page.tsx` (admin inventory branch): disable/enable, admin reset dialog, toasts
-- [ ] T034 [US6] Migrate `app/(admin)/admin/merchants/page.tsx` (and `organizations/page.tsx` if present) → `app/(dashboard)/merchants/page.tsx` (root `/merchants`): org list with device counts; admin-only via `permission`
+- [x] T032 [P] [US6] Migrate `app/(admin)/admin/devices/new/page.tsx` → `app/(dashboard)/devices/new/page.tsx` (root `/devices/new`): create + assign to reseller org, shows claim code once, toasts, skeleton; admin-only via `permission` (FR-037)
+- [x] T033 [P] [US6] Migrate `app/(admin)/admin/devices/page.tsx` → `app/(dashboard)/devices/page.tsx` (admin inventory branch): disable/enable, admin reset dialog, toasts
+- [x] T034 [US6] Migrate `app/(admin)/admin/merchants/page.tsx` (and `organizations/page.tsx` if present) → `app/(dashboard)/merchants/page.tsx` (root `/merchants`): org list with device counts; admin-only via `permission`
 
 **Checkpoint**: Admin works at root paths; legacy `app/(admin)/` tree removable (do it in Polish).
 
@@ -319,3 +319,14 @@ With multiple developers:
 - Permission rows are the single source of truth for sidebar nav + endpoint access (FR-036/037) — a page without a matching `permission` row for the role is unreachable
 - Migrations must keep `npm run typecheck` green at every checkpoint
 - Verification commands: `npm run coverage` (≥90%), `npm run test:e2e`, `npm run build`
+
+---
+
+## Phase 12: Convergence
+
+**Purpose**: Remaining work surfaced by the post-clarify converge pass. Adds FR-039 (confirmation dialog before every device/member state change) and FR-040 (create/delete as dialog views, admin-only device delete with `deleted` status) — both ratified as Clarification Session 2026-09-16.
+
+- [x] T050 [US4] Wrap every device/member state-changing dashboard action in a confirmation dialog before mutation per FR-039 (partial): publish/unpublish in `app/(dashboard)/devices/devices-client.tsx`, unpublish + assign in `app/(dashboard)/devices/[id]/settings/settings-client.tsx`, assign/unassign in `app/(dashboard)/user-management/[memberId]/member-detail-client.tsx`; Dialog states the action + Confirm/Cancel
+- [x] T051 [US6] Implement admin-only soft delete of devices per FR-040 (missing): add `deleted` to `domains/device/constants.ts` `DEVICE_STATUS`; `deleteDevice(id)` service (owner: keeps org/destinations/scans retained; `deleted` status, hidden from all lists); `deleteDeviceAction` Server Action; `/api/device/delete` permission row in `db/seed/permissions.ts`; admin delete confirmed via dialog (no DB row removal)
+- [x] T052 [US6] Rework admin device create to a dialog view per FR-040 (contradicts): supersede T032's `/devices/new/page.tsx` page target — render the create form as a dialog on the admin `/devices` inventory instead; reconcile `db/seed/permissions.ts` `/devices/new` nav row (drop or point to `/devices`) and reparent `api.create_device` to `/devices`
+- [x] T053 Create `app/(dashboard)/settings/page.tsx` (profile/org/theme) so the seeded `/settings` nav row resolves for all roles per plan.md structure and FR-037 (missing)

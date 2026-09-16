@@ -1,42 +1,24 @@
 'use client';
 
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { destinationKeys, destinationQueries } from '@/domains/destination/api/mutations';
-import type { DESTINATION_TYPES } from '@/domains/destination/constants';
+import {
+  DestinationRow,
+  type DestinationRowValue,
+  type RowType,
+} from '@/components/forms/destination-editor';
 import { setDestinationsAction } from '@/domains/destination/server/actions';
 import { deviceKeys, deviceQueries } from '@/domains/device/api/queries';
 import { publishDeviceAction, unpublishDeviceAction } from '@/domains/device/server/actions';
 import { useAction } from '@/hooks/use-action';
 
-type RowType = (typeof DESTINATION_TYPES)[number];
-
-type Row = {
-  type: RowType;
-  label: string;
-  url: string;
-  placeId: string;
-};
-
-const TYPE_OPTIONS: RowType[] = [
-  'GOOGLE_REVIEW',
-  'INSTAGRAM',
-  'FACEBOOK',
-  'TIKTOK',
-  'WHATSAPP',
-  'WEBSITE',
-  'CUSTOM_URL',
-];
-
-const field = 'w-full rounded border px-3 py-2 text-sm';
-
 export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
   const { data: device } = useSuspenseQuery(deviceQueries.detail(deviceId));
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<DestinationRowValue[]>([]);
 
   const save = useAction(
-    (input: { destinations: Row[] }) =>
+    (input: { destinations: DestinationRowValue[] }) =>
       setDestinationsAction(deviceId, {
         destinations: input.destinations.map((r, position) => ({
           type: r.type,
@@ -74,7 +56,7 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
     );
   }, [device.destinations]);
 
-  const update = useCallback((i: number, patch: Partial<Row>) => {
+  const update = useCallback((i: number, patch: Partial<DestinationRowValue>) => {
     setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   }, []);
 
@@ -170,135 +152,6 @@ export function DeviceConfigClient({ deviceId }: { deviceId: string }) {
           )}
         </div>
       </section>
-    </div>
-  );
-}
-
-function DestinationRow({
-  row,
-  index,
-  onUpdate,
-  onPlace,
-  onRemove,
-}: {
-  row: Row;
-  index: number;
-  onUpdate: (patch: Partial<Row>) => void;
-  onPlace: (place: { googlePlaceId: string; name: string }) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="space-y-2 rounded border p-3">
-      <div className="flex items-center gap-2">
-        <select
-          value={row.type}
-          onChange={(e) => onUpdate({ type: e.target.value as RowType })}
-          className={field}
-          aria-label={`Destination type ${index + 1}`}
-        >
-          {TYPE_OPTIONS.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="ml-auto rounded border px-2 text-sm hover:bg-muted"
-          aria-label="Remove destination"
-        >
-          ✕
-        </button>
-      </div>
-
-      <input
-        value={row.label}
-        onChange={(e) => onUpdate({ label: e.target.value })}
-        aria-label={
-          row.type === 'GOOGLE_REVIEW'
-            ? `Business name ${index + 1}`
-            : `Label ${index + 1} (optional)`
-        }
-        placeholder={
-          row.type === 'GOOGLE_REVIEW' ? 'Business name (filled from Google)' : 'Label (optional)'
-        }
-        className={field}
-      />
-
-      {row.type === 'GOOGLE_REVIEW' ? (
-        <PlaceSearch onSelect={onPlace} />
-      ) : (
-        <input
-          value={row.url}
-          onChange={(e) => onUpdate({ url: e.target.value })}
-          placeholder="https://…"
-          type="url"
-          aria-label="Destination URL"
-          className={field}
-        />
-      )}
-    </div>
-  );
-}
-
-function PlaceSearch({
-  onSelect,
-}: {
-  onSelect: (p: { googlePlaceId: string; name: string }) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [submitted, setSubmitted] = useState('');
-  const { data, isFetching } = useQuery({
-    queryKey: destinationKeys.places(submitted),
-    queryFn: () => destinationQueries.places(submitted).queryFn(),
-    enabled: submitted.length > 0,
-  });
-
-  useEffect(() => {
-    if (data && data.length > 0) {
-      const first = data[0];
-      onSelect({ googlePlaceId: first.googlePlaceId, name: first.name });
-    }
-  }, [data, onSelect]);
-
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search a business on Google…"
-          aria-label="Search a business on Google"
-          className={field}
-        />
-        <button
-          type="button"
-          disabled={isFetching || query.trim().length === 0}
-          onClick={() => setSubmitted(query)}
-          className="rounded border px-3 text-sm hover:bg-muted disabled:opacity-60"
-        >
-          {isFetching ? '…' : 'Search'}
-        </button>
-      </div>
-      {submitted && data && data.length > 0 && (
-        <ul className="space-y-1">
-          {data.map((p) => (
-            <li key={p.googlePlaceId}>
-              <button
-                type="button"
-                onClick={() => onSelect({ googlePlaceId: p.googlePlaceId, name: p.name })}
-                className="w-full rounded border p-2 text-left text-sm hover:bg-muted"
-              >
-                <span className="font-medium">{p.name}</span>
-                {p.formattedAddress && (
-                  <span className="block text-xs text-muted-foreground">{p.formattedAddress}</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

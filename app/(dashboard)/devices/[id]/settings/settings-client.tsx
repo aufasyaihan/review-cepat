@@ -2,6 +2,7 @@
 
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +42,7 @@ export function SettingsClient({
   const router = useRouter();
   const { data: device } = useSuspenseQuery(deviceQueries.detail(deviceId));
   const keys = [deviceKeys.detail(deviceId), deviceKeys.lists()];
+  const [pendingAssign, setPendingAssign] = useState<MemberWithUser | null>(null);
 
   const assign = useAction(
     (args: { deviceId: string; memberId: string }) =>
@@ -76,9 +78,11 @@ export function SettingsClient({
             </p>
           </div>
           <Select
+            value={null}
             onValueChange={(value: string | null) => {
               if (!value) return;
-              assign.mutate({ deviceId, memberId: value });
+              const member = members.find((m) => m.id === value);
+              if (member) setPendingAssign(member);
             }}
           >
             <SelectTrigger>
@@ -92,6 +96,35 @@ export function SettingsClient({
               ))}
             </SelectContent>
           </Select>
+          <Dialog
+            open={pendingAssign !== null}
+            onOpenChange={(open) => {
+              if (!open) setPendingAssign(null);
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  Assign {device.name} to {pendingAssign?.name}?
+                </DialogTitle>
+                <DialogDescription>
+                  {pendingAssign?.name} will be able to manage and configure this device.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+                <Button
+                  disabled={assign.isPending}
+                  onClick={() => {
+                    if (!pendingAssign) return;
+                    assign.mutate({ deviceId, memberId: pendingAssign.id });
+                  }}
+                >
+                  {assign.isPending ? 'Assigning…' : 'Assign'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </section>
       )}
 
@@ -103,13 +136,37 @@ export function SettingsClient({
               Remove this device from the public directory. It stays in your organization.
             </p>
           </div>
-          <Button
-            variant="outline"
-            disabled={unpublish.isPending}
-            onClick={() => unpublish.mutate(deviceId)}
-          >
-            {unpublish.isPending ? 'Unpublishing…' : 'Unpublish device'}
-          </Button>
+          <Dialog>
+            <DialogTrigger
+              render={
+                <Button variant="outline" disabled={unpublish.isPending}>
+                  {unpublish.isPending ? 'Unpublishing…' : 'Unpublish device'}
+                </Button>
+              }
+            />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Unpublish {device.name}?</DialogTitle>
+                <DialogDescription>
+                  Remove this device from the public directory. It stays in your organization.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+                <DialogClose
+                  render={
+                    <Button
+                      variant="destructive"
+                      disabled={unpublish.isPending}
+                      onClick={() => unpublish.mutate(deviceId)}
+                    />
+                  }
+                >
+                  {unpublish.isPending ? 'Unpublishing…' : 'Unpublish device'}
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </section>
       )}
 

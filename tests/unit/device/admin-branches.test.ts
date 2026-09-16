@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('drizzle-orm', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('drizzle-orm')>()),
+  eq: (lhs: unknown, rhs: unknown) => ({ op: 'eq', lhs, rhs }),
+  ne: (lhs: unknown, rhs: unknown) => ({ op: 'ne', lhs, rhs }),
+  and: (...conds: unknown[]) => conds,
+  asc: (col: unknown) => ({ op: 'asc', col }),
+  desc: (col: unknown) => ({ op: 'desc', col }),
+}));
+
 vi.mock('@/db', () => {
   const db = {
     query: {
@@ -24,7 +33,15 @@ vi.mock('@/db', () => {
 });
 
 import { getDb } from '@/db';
-import { adminCreate, publishVisible, unpublishVisible } from '@/domains/device/server/service';
+import {
+  adminCreate,
+  adminList,
+  deleteDevice,
+  getVisible,
+  listVisible,
+  publishVisible,
+  unpublishVisible,
+} from '@/domains/device/server/service';
 
 const now = new Date('2025-07-01T00:00:00Z');
 function deviceRow(overrides: Record<string, unknown> = {}) {
@@ -132,5 +149,59 @@ describe('device admin/branch paths', () => {
       .mockResolvedValueOnce(deviceRow({ status: 'UNPUBLISHED' }));
     const result = await unpublishVisible('dev-1', ownerMembership);
     expect(result.status).toBe('UNPUBLISHED');
+  });
+
+  // --- deleteDevice (soft delete, FR-040) ---
+  describe('deleteDevice', () => {
+    it('throws 404 when device not found', async () => {
+      await expect(deleteDevice('ghost')).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('sets status DELETED without deleting the row', async () => {
+      q('device')
+        .findFirst.mockResolvedValueOnce(deviceRow({ status: 'CLAIMED' }))
+        .mockResolvedValueOnce(deviceRow({ status: 'DELETED' }));
+      const result = await deleteDevice('dev-1');
+      expect(result.status).toBe('DELETED');
+    });
+  });
+
+  // --- DELETED filtering (deleted devices are unreachable) ---
+  describe('DELETED filtering', () => {
+    type Cond = { op: string; lhs?: { name: string }; rhs: unknown };
+    const condsOf = (where: unknown): Cond[] => ([] as unknown[]).concat(where ?? []) as Cond[];
+
+    it('listVisible omits DELETED devices', async () => {
+      q('device').findMany.mockImplementationOnce(({ where }: { where?: unknown }) => {
+        const hasNeDeleted = condsOf(where).some((c) => c.op === 'ne' && c.rhs === 'DELETED');
+        return Promise.resolve(
+          [deviceRow({ id: 'd-del', status: 'DELETED' }), deviceRow({ id: 'd-live' })].filter(
+            (r) => !(hasNeDeleted && r.status === 'DELETED'),
+          ),
+        );
+      });
+      const result = await listVisible(ownerMembership);
+      expect(result.map((r) => r.id)).toEqual(['d-live']);
+    });
+
+    it('getVisible throws 404 for a DELETED device', async () => {
+      q('device').findFirst.mockResolvedValueOnce(null);
+      await expect(getVisible('dev-1', ownerMembership)).rejects.toMatchObject({ status: 404 });
+      const args = q('device').findFirst.mock.calls[0][0] as { where?: unknown } | undefined;
+      expect(condsOf(args?.where).some((c) => c.op === 'ne' && c.rhs === 'DELETED')).toBe(true);
+    });
+
+    it('adminList omits DELETED devices', async () => {
+      q('device').findMany.mockImplementationOnce(({ where }: { where?: unknown }) => {
+        const neDel = condsOf(where).find((c) => c.op === 'ne' && c.rhs === 'DELETED');
+        return Promise.resolve(
+          [deviceRow({ id: 'deleted', status: 'DELETED' }), deviceRow({ id: 'live' })].filter(
+            (r) => !(neDel && r.status === 'DELETED'),
+          ),
+        );
+      });
+      const result = await adminList();
+      expect(result.map((d) => d.id)).toEqual(['live']);
+    });
   });
 });

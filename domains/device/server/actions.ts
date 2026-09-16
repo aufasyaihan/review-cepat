@@ -20,6 +20,7 @@ import {
   adminCreate,
   adminReset,
   adminSetDisabled,
+  deleteDevice,
   ownerReset,
   publishVisible,
   transfer,
@@ -103,7 +104,7 @@ export async function createDeviceAction(
     });
     if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid device name');
     const result = await adminCreate(parsed.data);
-    revalidatePath('/admin/devices');
+    revalidatePath('/devices');
     return ok(result);
   } catch (err) {
     return fail(toMessage(err));
@@ -118,7 +119,19 @@ export async function setDeviceDisabledAction(
     await requireApiUser(['ADMIN']);
     await requireApiPermission('/api/device/disable');
     const device = await adminSetDisabled(id, disabled);
-    revalidatePath('/admin/devices');
+    revalidatePath('/devices');
+    return ok(device);
+  } catch (err) {
+    return fail(toMessage(err));
+  }
+}
+
+export async function deleteDeviceAction(id: string): Promise<ActionResult<DeviceSummary>> {
+  try {
+    await requireApiUser(['ADMIN']);
+    await requireApiPermission('/api/device/delete');
+    const device = await deleteDevice(id);
+    revalidatePath('/devices');
     return ok(device);
   } catch (err) {
     return fail(toMessage(err));
@@ -135,7 +148,7 @@ export async function resetDeviceAction(
     if (scope === 'admin') {
       await requireApiUser(['ADMIN']);
       const result = await adminReset(id);
-      revalidatePath('/admin/devices');
+      revalidatePath('/devices');
       return ok(result);
     }
 

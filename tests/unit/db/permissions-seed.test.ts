@@ -51,8 +51,8 @@ describe('ensurePermissions', () => {
     const navRows = inserted.filter((r) => r.isMenu === true);
     const apiRows = inserted.filter((r) => r.isMenu === false);
 
-    expect(navRows.length).toBeGreaterThanOrEqual(7);
-    expect(apiRows.length).toBeGreaterThanOrEqual(10);
+    expect(navRows.length).toBeGreaterThanOrEqual(6);
+    expect(apiRows.length).toBeGreaterThanOrEqual(11);
     expect(apiRows.every((r) => r.icon === null)).toBe(true);
 
     const createDevice = apiRows.find((r) => r.path === '/api/device/create');
@@ -60,8 +60,11 @@ describe('ensurePermissions', () => {
     const parentId = createDevice?.parentId;
     expect(parentId).toBeTypeOf('string');
 
-    const devicesNew = navRows.find((r) => r.path === '/devices/new');
-    expect(devicesNew?.id).toBe(parentId);
+    const devicesNav = navRows.find((r) => r.path === '/devices');
+    expect(devicesNav?.id).toBe(parentId);
+
+    const deleted = apiRows.find((r) => r.path === '/api/device/delete');
+    expect(deleted?.parentId).toBe(parentId);
 
     const invite = apiRows.find((r) => r.path === '/api/member/invite');
     const userMgmt = navRows.find((r) => r.path === '/user-management');

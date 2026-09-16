@@ -35,6 +35,11 @@
 
 - Q: How should dashboard data views present tabular data? → A: Dashboard data views (device lists, members, merchants, organizations, analytics breakdowns) MUST render through a reusable `DataTable` component at `components/ui/data-table/` built on `@tanstack/react-table`, mirroring the reference project (`khitan-plus-hipnosis`) — sorting, filtering, pagination, column-visibility, `DataTableSkeleton`/empty states — not hand-rolled static `Table` markup.
 - Q: Should API endpoints also be rows in the `permission` table? → A: Yes. API endpoints are `permission` rows with `parent_id` pointing to the page/menu row they serve, `path` = the endpoint (e.g. `/api/device`), `is_menu=false`, a dotted label (e.g. `api.create_device`), and permitted roles. `can()` gates endpoint access at the API layer (route handlers / domain API) just as it gates page access in proxy.ts and layouts.
+- Q: Which actions require a confirmation dialog on the dashboard? → A: Every action that changes device or member state (publish, unpublish, reset, assign, unassign, transfer, disable, delete) MUST show a confirmation dialog before executing.
+- Q: Does "create and delete uses dialog view not a page" retrofit the existing claim flow? → A: No. The existing `/devices/claim` page stays as a page. The dialog rule applies to create/delete flows built from now on (e.g. admin create device, admin delete device).
+- Q: Should the MVP include a hard-delete capability? → A: Yes, an admin-only device delete, gated behind a confirmation dialog. It is a soft delete (see device-status question below).
+- Q: What happens to a deleted device's rows and scan history? → A: Soft delete: the device is marked deleted and hidden from all lists, but its destinations, member assignment, and scan events are retained for audit and analytics integrity.
+- Q: How is the soft-deleted state represented? → A: `deleted` is added as a device lifecycle status value (same single status column as the existing lifecycle states), not a separate flag column.
 
 ### Session 2026-09-14
 
@@ -212,6 +217,8 @@ A first-time visitor opens the platform's public homepage and immediately unders
 - A sub-merchant entering a claim code for a device bound to a different organization.
 - An owner removing the last sub-merchant from an organization (Better Auth last-owner protection).
 - Resetting a device that is currently published (reset unpublishes it and requires re-setup via the fresh claim code).
+- An admin deleting a device that is currently published (deletion sets the `deleted` status; the device no longer forwards scans and is hidden from all device lists).
+- Every state-changing dashboard action (publish, unpublish, reset, assign/unassign, transfer, disable, delete) requires user confirmation — an accidental submit must be blockable in the dialog.
 
 ## Requirements *(mandatory)*
 
@@ -255,11 +262,13 @@ A first-time visitor opens the platform's public homepage and immediately unders
 - **FR-036**: All roles (admin, reseller, sub-merchant) MUST use root-level paths with no role-specific URL prefixes and no nested route groups. Which pages a role can reach and which items appear in the sidebar MUST be resolved from a seeded `permission` table at runtime.
 - **FR-038**: Dashboard data views (device lists, members, merchants, organizations, analytics breakdowns) MUST render through a reusable `DataTable` component at `components/ui/data-table/` built on `@tanstack/react-table`, mirroring the reference project — with sorting, filtering, pagination, column-visibility, `DataTableSkeleton`/empty states — rather than hand-rolled static `Table` markup.
 - **FR-037**: The system MUST expose a `permission` table storing navigation rows AND API-endpoint rows (`path`, `label`, `icon`, `is_menu`, `parent_id`, permitted roles). Navigation rows have `is_menu=true` and `parent_id=null`; API-endpoint rows reference the page they serve via `parent_id`, use the endpoint as `path` (e.g. `/api/device`), `is_menu=false`, and a dotted label (e.g. `api.create_device`). The table MUST be seeded by default so each role sees the correct nav menu — admin: Dashboard/Devices/User management/Merchants/Settings; reseller: Dashboard/Devices/User management/Settings; sub-merchant: Dashboard/Devices/Settings — and route access MUST be enforced against this table in the proxy/guard and in layouts, and API access MUST be enforced against it at the API layer (route handlers / domain API).
+- **FR-039**: Every dashboard action that changes device or member state (publish, unpublish, reset, assign/unassign, transfer, disable, delete) MUST be preceded by a confirmation dialog before it executes. The dialog MUST state what the action does and provide explicit Confirm/Cancel actions.
+- **FR-040**: Device create and delete flows built in this feature (admin create device, admin delete device) MUST use a dialog view rather than a separate page. This does NOT retrofit the existing `/devices/claim` page, which stays a page.
 
 ### Key Entities *(include if feature involves data)*
 
 - **Organization (Merchant)**: A Better Auth organization representing a merchant business. Contains an owner (reseller) and members (sub-merchants). Owns devices and configurations. Uses Better Auth's organization plugin with `owner` and `member` roles.
-- **Device**: Represents a physical NFC tag or QR code with a unique identity, a claim code, organization ownership (`organizationId` bound at admin creation/sale), an optional per-device member assignment (sub-merchant), a configuration, and a lifecycle status (unclaimed, claimed, published, unpublished, disabled, transferred).
+- **Device**: Represents a physical NFC tag or QR code with a unique identity, a claim code, organization ownership (`organizationId` bound at admin creation/sale), an optional per-device member assignment (sub-merchant), a configuration, and a lifecycle status (unclaimed, claimed, published, unpublished, disabled, deleted, transferred). The `deleted` status is a soft-delete state set by an admin; the device is hidden from all lists but its destinations, member assignment, and scan events are retained. Modeled as one status column shared with the other lifecycle states.
 - **Admin**: A privileged account that creates devices, manages inventory, and oversees merchant organizations.
 - **Destination**: A single configured redirect target or one entry in a multi-link page, typed as Google review, Instagram, Facebook, TikTok, WhatsApp, website, or custom URL.
 - **Scan Event**: A recorded interaction on a device capturing outcome, source, browser/device, location when available, referrer, and timestamp.
