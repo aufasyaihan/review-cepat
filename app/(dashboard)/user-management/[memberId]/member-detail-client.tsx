@@ -24,18 +24,24 @@ import { assignDeviceAction, unassignDeviceAction } from '@/domains/merchant/ser
 import type { MemberWithUser } from '@/domains/merchant/server/service';
 import { useAction } from '@/hooks/use-action';
 
-export function MemberDetailClient({ member }: { member: MemberWithUser; organizationId: string }) {
+export function MemberDetailClient({
+  member,
+  organizationId,
+}: {
+  member: MemberWithUser;
+  organizationId: string;
+}) {
   const { data: devices } = useSuspenseQuery(deviceQueries.list());
 
   const assign = useAction(
     (args: { deviceId: string; memberId: string }) =>
-      assignDeviceAction(args.deviceId, args.memberId),
+      assignDeviceAction(args.deviceId, args.memberId, organizationId),
     {
       successMsg: 'Device assigned',
       keys: [deviceKeys.lists()],
     },
   );
-  const unassign = useAction(unassignDeviceAction, {
+  const unassign = useAction((deviceId: string) => unassignDeviceAction(deviceId, organizationId), {
     successMsg: 'Device unassigned',
     keys: [deviceKeys.lists()],
   });
