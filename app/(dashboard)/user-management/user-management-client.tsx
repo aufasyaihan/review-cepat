@@ -3,7 +3,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,21 +11,45 @@ import DataTable from '@/components/ui/data-table/data-table';
 import { DataTableColumnHeader } from '@/components/ui/data-table/data-table-header';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { memberKeys, memberQueries } from '@/domains/merchant/api/queries';
 import { inviteMemberAction } from '@/domains/merchant/server/member-actions';
-import type { MemberWithUser } from '@/domains/merchant/server/service';
+import type { MemberWithUser, OrganizationWithDevices } from '@/domains/merchant/server/service';
 import { useAction } from '@/hooks/use-action';
 
-export function UserManagementClient() {
+export function UserManagementClient({
+  isAdmin,
+  organizations,
+}: {
+  isAdmin: boolean;
+  organizations: OrganizationWithDevices[];
+}) {
   const router = useRouter();
   const { data: members } = useSuspenseQuery(memberQueries.list());
   const [email, setEmail] = useState('');
+  const [viewOrgId, setViewOrgId] = useState('');
+  const [inviteOrgId, setInviteOrgId] = useState('');
 
-  const invite = useAction(inviteMemberAction, {
-    successMsg: 'Invitation sent',
-    keys: [memberKeys.list()],
-    onSuccess: () => setEmail(''),
-  });
+  const invite = useAction(
+    (args: { email: string; role: 'owner' | 'member'; organizationId?: string }) =>
+      inviteMemberAction(args),
+    {
+      successMsg: 'Invitation sent',
+      keys: [memberKeys.list()],
+      onSuccess: () => setEmail(''),
+    },
+  );
+
+  const visibleMembers = useMemo(
+    () => (isAdmin && viewOrgId ? members.filter((m) => m.organizationId === viewOrgId) : members),
+    [members, isAdmin, viewOrgId],
+  );
 
   const columns: ColumnDef<MemberWithUser>[] = [
     {
@@ -36,6 +60,14 @@ export function UserManagementClient() {
       accessorKey: 'email',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
     },
+    ...(isAdmin
+      ? ([
+          {
+            accessorKey: 'organizationName',
+            header: ({ column }) => <DataTableColumnHeader column={column} title="Organization" />,
+          },
+        ] as ColumnDef<MemberWithUser>[])
+      : []),
     {
       accessorKey: 'role',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Role" />,
@@ -73,16 +105,45 @@ export function UserManagementClient() {
   return (
     <DataTable
       columns={columns}
-      data={members}
+      data={visibleMembers}
       showRowSelected={false}
       headerContent={
         <div className="flex flex-col gap-4">
-          <h1 className="text-xl font-semibold">User management</h1>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h1 className="text-xl font-semibold">User management</h1>
+            {isAdmin && (
+              <div className="w-56">
+                <Label htmlFor="view-org">Filter by organization</Label>
+                <Select
+                  value={viewOrgId || 'all'}
+                  onValueChange={(value: string | null) =>
+                    setViewOrgId(value && value !== 'all' ? value : '')
+                  }
+                >
+                  <SelectTrigger id="view-org" className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All organizations</SelectItem>
+                    {organizations.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
           <form
             className="flex flex-wrap items-end gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              invite.mutate({ email, role: 'member' });
+              invite.mutate({
+                email,
+                role: 'member',
+                organizationId: isAdmin ? inviteOrgId : undefined,
+              });
             }}
           >
             <div>
@@ -97,7 +158,27 @@ export function UserManagementClient() {
                 className="mt-1"
               />
             </div>
-            <Button type="submit" disabled={invite.isPending}>
+            {isAdmin && (
+              <div className="w-56">
+                <Label htmlFor="invite-org">Into organization</Label>
+                <Select
+                  value={inviteOrgId}
+                  onValueChange={(value: string | null) => setInviteOrgId(value ?? '')}
+                >
+                  <SelectTrigger id="invite-org" className="mt-1">
+                    <SelectValue placeholder="Select an organization" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <Button type="submit" disabled={invite.isPending || (isAdmin && !inviteOrgId)}>
               {invite.isPending ? 'Sending…' : 'Invite'}
             </Button>
           </form>
