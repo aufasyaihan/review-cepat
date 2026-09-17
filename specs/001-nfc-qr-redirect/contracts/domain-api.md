@@ -12,9 +12,10 @@ Route groups: four — `(auth)`, `(dashboard)` (all roles, root paths), `(landin
 ### `app/api/auth/[...all]/route.ts`
 
 Better Auth route handler (POST/GET passthrough): sign-in, sign-up, session, sign-out,
-plus organization endpoints (invite, accept, list members, set active org, assign role).
-No business logic beyond translation. Org roles (`owner` | `member`) enforced at domain
-permissions, not here.
+plus organization endpoints (list members, set active org, assign role). No business
+logic beyond translation. Org roles (`owner` | `member`) enforced at domain permissions,
+not here. **No invite flow is used** (FR-022): the org plugin's invitation endpoints
+exist but the user-management UI exposes no invite/add-member action.
 
 ### `app/[slug]/setup` and `app/[slug]/setup/redirect`
 
@@ -54,19 +55,49 @@ Public device resolution (in the `(redirect)` group) — see [public-scan.md](pu
   different account it presents login-or-register; when a reseller, it can assign the
   device directly to their org (FR-005/023).
 - `profile()` — current user + membership/role in active org.
-- Owner: `listMembers(organizationId)`, `inviteMember(email, role)`,
-  `assignDevice(deviceId, memberId)`, `unassignDevice(deviceId)`, `updateMemberRole(...)`.
-- Admin: `listOrganizations()` — org list with device counts.
+- Owner: `listMembers(organizationId)`, `assignDevice(deviceId, memberId)`,
+  `unassignDevice(deviceId)`, `updateMemberRole(...)`, `removeMember(memberId)` —
+  **no invite/add-member op**; members join only via claim-code self-registration
+  (FR-022). Row actions per FR-045: user-management Edit → `updateMemberRole`/
+  `profile` edits; Delete → `removeMember`.
+- Admin:
+  - `listUsers({ q?, organizationId?, page?, limit? })` — **server-driven** admin
+    user list (debounced): search `q`, merchant-filter `organizationId`, server-side
+    pagination `page`/`limit` (FR-052/055). Route: `GET /api/members`.
+  - `createUser(payload)` — name/email/password + org + role (owner/member); no email
+    invitation (FR-052). Route: `POST /api/members`.
+  - `updateUser(memberId, payload)` — name, email, role, org reassignment (move user
+    between organizations — FR-053), device assign/disassign (FR-052). Route:
+    `PATCH /api/members/:memberId`.
+  - `deleteUser(memberId)` — removes membership + deactivates platform account
+    (last-owner protected) (FR-052). Route: `DELETE /api/members/:memberId`.
+  - `listOrganizations({ q?, page?, limit? })` — **server-driven** admin merchant list
+    (debounced search + server-side pagination; user-facing label "merchants", FR-047).
+    Route: `GET /api/organizations` (FR-054/055).
+  - `createOrganization(payload)` — org shell (business name only; no owner assigned
+    at creation) (FR-054). Route: `POST /api/organizations`.
+  - `updateOrganization(organizationId, payload)` — business name + assign owner from
+    existing accounts (FR-054). Route: `PATCH /api/organizations/:id`.
+  - `deleteOrganization(organizationId)` — removes the merchant org (devices/members
+    handling per confirmation dialog) (FR-054). Route: `DELETE /api/organizations/:id`.
+  - Merchant combobox options (user-management filter) load via **TanStack Query
+    `useInfiniteQuery`** against `GET /api/organizations` (debounced `q`, `page`,
+    `limit`) — never `prefetchQuery`, never client-filtered (FR-056).
+- (Device edit "Edit" row action opens an in-place dialog and MUST NOT navigate to
+  `/devices/[id]` — FR-040; Settings session "Revoke all others"/revoke is gated by an
+  `AlertDialog` confirmation — FR-039.)
 
 ### device
 
 - Public setup: `validateClaimCode(deviceSlug, claimCode)` for `/[slug]/setup`.
 - Merchant: `listVisible()` (owner sees org devices; member sees assigned),
   `get(id)`, `claim(claimCode)`, `updateName(id, name)`, `publish(id)`, `unpublish(id)`,
-  `reset(id)` (owner keep-org scope).
+  `reset(id)` (owner keep-org scope). Device-row actions per FR-045: Edit →
+  `updateName`/destination config; Reset → `reset` (owner).
 - Admin: `listAll()`, `create(payload)` (returns `slug` + claim code; accepts optional
   `organizationId` to assign at sale), `disable(id)`, `enable(id)`, `reset(id)`
-  (admin clear-org scope), `transfer(id, toOrganizationId?)`.
+  (admin clear-org scope), `transfer(id, toOrganizationId?)`, `delete(id)` (admin-only
+  soft delete — sets `deleted` status; FR-040/045 device-row Delete).
 
 ### destination
 
@@ -85,7 +116,8 @@ Public device resolution (in the `(redirect)` group) — see [public-scan.md](pu
 - `overview(from?, to?)` — totals + per-day + per-device aggregate (owner only),
   filtered by date range when `from`/`to` provided (FR-044).
 - `adminOverview(from?, to?)` — aggregates across ALL merchants' devices for the admin
-  dashboard date-filtered view (FR-044).
+  dashboard date-filtered view; includes merchant count and user count summary metrics
+  (FR-044, FR-051).
 - `breakdown(deviceId, dimension)` — browser/deviceType/country/city/referrer counts.
 
 ## Validation boundary

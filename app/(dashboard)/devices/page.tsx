@@ -36,7 +36,7 @@ export default async function DevicesPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <DevicesClient />
+      <DevicesClient isOwner={session.membership.role === 'owner'} />
     </HydrationBoundary>
   );
 }

@@ -121,7 +121,7 @@ describe('ensurePermissions', () => {
 
     // Every permission gets a MERCHANT link; ADMIN links exist only where the
     // seed intentionally grants admin nav/access (never /devices/claim etc.).
-    expect(links).toHaveLength(PERMISSION_ROWS.length + 16);
+    expect(links).toHaveLength(PERMISSION_ROWS.length + 21);
     expect(links.some((l) => l.scope === 'owner')).toBe(true);
   });
 

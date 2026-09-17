@@ -10,6 +10,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { authClient } from '@/lib/auth-client';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../ui/alert-dialog';
 
 function parseUserAgent(ua: string | null | undefined) {
   if (!ua) return { browser: 'Unknown', device: 'Desktop' };
@@ -91,20 +101,56 @@ export function ActiveSessions() {
             <CardDescription>Devices currently signed in to your account.</CardDescription>
           </div>
           {otherSessions.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={revokeAll}
-              disabled={revokingAll}
-              className="shrink-0 gap-1.5 text-xs text-destructive hover:text-destructive"
-            >
-              {revokingAll ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Trash2 className="size-3" />
-              )}
-              Revoke all others
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger
+                render={(props) => (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={revokingAll}
+                    className="shrink-0 gap-1.5 text-xs"
+                    {...props}
+                  >
+                    {revokingAll ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3" />
+                    )}
+                    Revoke all others
+                  </Button>
+                )}
+              />
+              <AlertDialogContent>
+                <AlertDialogHeader className="space-y-4">
+                  <AlertDialogTitle className="text-lg font-semibold">
+                    Revoke all other sessions?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-sm text-muted-foreground">
+                    This will sign out all other devices and browsers except for the one you are
+                    currently using. You will need to sign in again on those devices.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel
+                    render={(props) => (
+                      <Button variant="outline" {...props}>
+                        Cancel
+                      </Button>
+                    )}
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <Button variant="destructive" onClick={revokeAll}>
+                    {revokingAll ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3" />
+                    )}
+                    Revoke all others
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </CardHeader>

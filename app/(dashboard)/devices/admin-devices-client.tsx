@@ -2,9 +2,22 @@
 
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
+import { Copy } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { createActionsColumn } from '@/components/ui/data-table/actions-column';
 import DataTable from '@/components/ui/data-table/data-table';
 import { DataTableColumnHeader } from '@/components/ui/data-table/data-table-header';
 import {
@@ -14,7 +27,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,14 +47,7 @@ import {
 import type { DeviceSummary } from '@/domains/device/types';
 import type { OrganizationWithDevices } from '@/domains/merchant/server/service';
 import { useAction } from '@/hooks/use-action';
-
-const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
-  UNCLAIMED: { label: 'Unclaimed', tone: 'bg-muted text-muted-foreground' },
-  CLAIMED: { label: 'Draft', tone: 'bg-muted text-muted-foreground' },
-  PUBLISHED: { label: 'Published', tone: 'bg-emerald-100 text-emerald-800' },
-  UNPUBLISHED: { label: 'Unpublished', tone: 'bg-amber-100 text-amber-800' },
-  DISABLED: { label: 'Disabled', tone: 'bg-red-100 text-red-800' },
-};
+import { EditDeviceDialog } from './edit-device-dialog';
 
 export function AdminDevicesClient({
   organizations,
@@ -51,8 +56,10 @@ export function AdminDevicesClient({
 }) {
   const { data: devices } = useSuspenseQuery(adminQueries.devices());
   const [createOpen, setCreateOpen] = useState(false);
+  const [pendingEdit, setPendingEdit] = useState<DeviceSummary | null>(null);
   const [pendingReset, setPendingReset] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [pendingDisable, setPendingDisable] = useState<string | null>(null);
 
   const disable = useAction((id: string) => setDeviceDisabledAction(id, true), {
     successMsg: 'Device disabled',
@@ -63,7 +70,7 @@ export function AdminDevicesClient({
     keys: [adminKeys.devices()],
   });
   const reset = useAction((id: string) => resetDeviceAction(id, 'admin'), {
-    successMsg: 'Device reset — organization cleared, new claim code issued',
+    successMsg: 'Device reset — merchant cleared, new claim code issued',
     keys: [adminKeys.devices(), adminKeys.organizations()],
     onSuccess: () => setPendingReset(null),
   });
@@ -83,16 +90,39 @@ export function AdminDevicesClient({
       accessorKey: 'slug',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Slug" />,
       cell: ({ row }) => (
-        <code className="text-xs text-muted-foreground">/s/{row.original.slug}</code>
+        <div className="flex items-center gap-2">
+          <code className="text-xs text-muted-foreground">/s/{row.original.slug}</code>
+          <button
+            type="button"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={() => {
+              navigator.clipboard.writeText(`${window.location.origin}/s/${row.original.slug}`);
+              toast.success('Link copied', { description: `/s/${row.original.slug}` });
+            }}
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+        </div>
       ),
     },
     {
       accessorKey: 'status',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
       cell: ({ row }) => {
-        const badge = STATUS_LABEL[row.original.status] ?? STATUS_LABEL.UNCLAIMED;
+        const variantMap: Record<
+          string,
+          'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' | 'info'
+        > = {
+          UNCLAIMED: 'secondary',
+          CLAIMED: 'info',
+          PUBLISHED: 'success',
+          UNPUBLISHED: 'warning',
+          DISABLED: 'destructive',
+        };
         return (
-          <span className={`rounded-full px-2 py-0.5 text-xs ${badge.tone}`}>{badge.label}</span>
+          <Badge variant={variantMap[row.original.status] ?? 'secondary'}>
+            {row.original.status}
+          </Badge>
         );
       },
     },
@@ -100,97 +130,20 @@ export function AdminDevicesClient({
       accessorKey: 'state',
       header: ({ column }) => <DataTableColumnHeader column={column} title="State" />,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
-          {row.original.status === 'UNCLAIMED' ? '—' : 'Claimed'}
-        </span>
+        <Badge variant={row.original.status === 'UNCLAIMED' ? 'secondary' : 'info'}>
+          {row.original.status === 'UNCLAIMED' ? 'Unclaimed' : 'Claimed'}
+        </Badge>
       ),
     },
-    {
-      id: 'actions',
-      header: '',
-      cell: ({ row }) => {
-        const d = row.original;
-        return (
-          <div className="flex justify-end gap-2">
-            {d.status === 'DISABLED' ? (
-              <Button size="sm" variant="outline" onClick={() => enable.mutate(d.id)}>
-                Re-enable
-              </Button>
-            ) : (
-              <Button size="sm" variant="outline" onClick={() => disable.mutate(d.id)}>
-                Disable
-              </Button>
-            )}
-            <Dialog
-              open={pendingReset === d.id}
-              onOpenChange={(open) => setPendingReset(open ? d.id : null)}
-            >
-              <DialogTrigger
-                render={
-                  <Button size="sm" variant="destructive">
-                    Reset
-                  </Button>
-                }
-              />
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Reset {d.name}?</DialogTitle>
-                  <DialogDescription>
-                    Clears all configuration, the organization binding, and the claim code. Use only
-                    for returns or re-inventory.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setPendingReset(null)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => reset.mutate(d.id)}
-                    disabled={reset.isPending}
-                  >
-                    {reset.isPending ? 'Resetting…' : 'Reset'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <Dialog
-              open={pendingDelete === d.id}
-              onOpenChange={(open) => setPendingDelete(open ? d.id : null)}
-            >
-              <DialogTrigger
-                render={
-                  <Button size="sm" variant="destructive">
-                    Delete
-                  </Button>
-                }
-              />
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete {d.name}?</DialogTitle>
-                  <DialogDescription>
-                    Marks the device deleted so it can no longer be claimed or scanned. Its scan
-                    history is kept.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setPendingDelete(null)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => del.mutate(d.id)}
-                    disabled={del.isPending}
-                  >
-                    {del.isPending ? 'Deleting…' : 'Delete'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        );
+    createActionsColumn<DeviceSummary>((d) => [
+      { label: 'Edit', onClick: () => setPendingEdit(d) },
+      {
+        label: d.status === 'DISABLED' ? 'Re-enable' : 'Disable',
+        onClick: () => setPendingDisable(d.id),
       },
-    },
+      { label: 'Reset', onClick: () => setPendingReset(d.id) },
+      { label: 'Delete', variant: 'destructive', onClick: () => setPendingDelete(d.id) },
+    ]),
   ];
 
   if (devices.length === 0) {
@@ -221,20 +174,135 @@ export function AdminDevicesClient({
         columns={columns}
         data={devices}
         showRowSelected={false}
-        headerContent={
-          <div className="flex flex-col gap-4">
-            <h1 className="text-xl font-semibold">Device inventory</h1>
-            <Button className="w-fit" onClick={() => setCreateOpen(true)}>
-              New device
-            </Button>
-          </div>
-        }
+        headerContent={<h1 className="text-xl font-semibold">Device inventory</h1>}
+        actions={<Button onClick={() => setCreateOpen(true)}>New device</Button>}
       />
+      <AlertDialog
+        open={pendingReset !== null}
+        onOpenChange={(open) => setPendingReset(open ? pendingReset : null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset device?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Clears all configuration, the merchant binding, and the claim code. Use only for
+              returns or re-inventory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              render={(props) => (
+                <Button variant="outline" {...props}>
+                  Cancel
+                </Button>
+              )}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={() => pendingReset && reset.mutate(pendingReset)}
+              disabled={reset.isPending}
+            >
+              {reset.isPending ? 'Resetting…' : 'Reset'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => setPendingDelete(open ? pendingDelete : null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete device?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Marks the device deleted so it can no longer be claimed or scanned. Its scan history
+              is kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              render={(props) => (
+                <Button variant="outline" {...props}>
+                  Cancel
+                </Button>
+              )}
+            ></AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={() => pendingDelete && del.mutate(pendingDelete)}
+              disabled={del.isPending}
+            >
+              {del.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={pendingDisable !== null}
+        onOpenChange={(open) => setPendingDisable(open ? pendingDisable : null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingDisable && devices.find((d) => d.id === pendingDisable)?.status === 'DISABLED'
+                ? 'Re-enable device?'
+                : 'Disable device?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDisable && devices.find((d) => d.id === pendingDisable)?.status === 'DISABLED'
+                ? 'This will re-enable the device so it can be claimed and scanned again.'
+                : 'This will disable the device so it can no longer be claimed or scanned.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              render={(props) => (
+                <Button variant="outline" {...props}>
+                  Cancel
+                </Button>
+              )}
+            ></AlertDialogCancel>
+            <Button
+              variant={
+                devices.find((d) => d.id === pendingDisable)?.status === 'DISABLED'
+                  ? 'default'
+                  : 'destructive'
+              }
+              onClick={() => {
+                if (!pendingDisable) return;
+                const device = devices.find((d) => d.id === pendingDisable);
+                if (!device) return;
+                if (device.status === 'DISABLED') enable.mutate(pendingDisable);
+                else disable.mutate(pendingDisable);
+                setPendingDisable(null);
+              }}
+              disabled={disable.isPending || enable.isPending}
+            >
+              {disable.isPending || enable.isPending
+                ? '…'
+                : pendingDisable &&
+                    devices.find((d) => d.id === pendingDisable)?.status === 'DISABLED'
+                  ? 'Re-enable'
+                  : 'Disable'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <CreateDeviceDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
         organizations={organizations}
       />
+      {pendingEdit && (
+        <EditDeviceDialog
+          device={pendingEdit}
+          scope="admin"
+          listKeys={[adminKeys.devices()]}
+          onOpenChange={(open) => !open && setPendingEdit(null)}
+        />
+      )}
     </>
   );
 }
@@ -316,8 +384,15 @@ function CreateDeviceDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="device-org">Assign to reseller organization (optional)</Label>
+              <Label htmlFor="device-org">Assign to reseller merchant (optional)</Label>
               <Select
+                items={[
+                  { value: 'none', label: 'No merchant — assign later' },
+                  ...organizations.map((o) => ({
+                    value: o.id,
+                    label: `${o.name} (${o.deviceCount} device${o.deviceCount === 1 ? '' : 's'})`,
+                  })),
+                ]}
                 value={orgId || 'none'}
                 onValueChange={(value: string | null) =>
                   setOrgId(value && value !== 'none' ? value : '')
@@ -327,7 +402,7 @@ function CreateDeviceDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No organization — assign later</SelectItem>
+                  <SelectItem value="none">No merchant — assign later</SelectItem>
                   {organizations.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.name} ({o.deviceCount} device{o.deviceCount === 1 ? '' : 's'})

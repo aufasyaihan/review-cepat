@@ -197,6 +197,37 @@ export async function unpublishVisible(
   return toSummmary(await readDeviceOrFail(id));
 }
 
+/** Admin renames any device (FR-045, Phase 17). */
+export async function adminRenameDevice(id: string, name: string): Promise<DeviceSummary> {
+  const db = getDb();
+  const row = await db.query.device.findFirst({ where: eq(device.id, id) });
+  if (!row || row.status === 'DELETED')
+    throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
+  await db
+    .update(device)
+    .set({ name: name.trim(), updatedAt: new Date() })
+    .where(eq(device.id, id));
+  return toSummmary(await readDeviceOrFail(id));
+}
+
+/** Owner/org-member renames a device they can see (FR-045, Phase 17). */
+export async function renameVisibleDevice(
+  id: string,
+  membership: MembershipLike,
+  name: string,
+): Promise<DeviceSummary> {
+  const db = getDb();
+  const row = await db.query.device.findFirst({
+    where: and(eq(device.id, id), orgAccessWhere(membership), ne(device.status, 'DELETED')),
+  });
+  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
+  await db
+    .update(device)
+    .set({ name: name.trim(), updatedAt: new Date() })
+    .where(eq(device.id, id));
+  return toSummmary(await readDeviceOrFail(id));
+}
+
 export async function claim(ownerId: number, input: unknown): Promise<DeviceSummary> {
   const { claimCode } = claimDeviceSchema.parse(input);
   const db = getDb();

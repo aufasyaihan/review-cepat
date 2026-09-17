@@ -53,10 +53,13 @@ vi.mock('next/navigation', () => ({
 }));
 
 import {
+  accessDenied,
   can,
   findPermissionForPath,
   getRole,
   listNavForRole,
+  listPermissionsForRole,
+  listRolePermissions,
   scopeAllows,
 } from '@/domains/auth/server/permissions';
 import { getActiveOrganization } from '@/domains/merchant/server/permissions';
@@ -295,5 +298,84 @@ describe('listNavForRole', () => {
   it('member sees no owner-scoped items', async () => {
     const nav = await listNavForRole('MERCHANT', 'member');
     expect(nav.map((n) => n.label)).toEqual(['Dashboard', 'Devices', 'Claim a device', 'Settings']);
+  });
+});
+
+describe('listPermissionsForRole', () => {
+  it('returns nav + API rows permitted for the org role, sorted by sort, defaulting label to path', async () => {
+    seed([
+      {
+        path: '/dashboard',
+        isMenu: true,
+        label: 'Dashboard',
+        icon: 'LayoutDashboard',
+        sort: 100,
+        scope: null,
+      },
+      {
+        path: '/api/device/publish',
+        isMenu: false,
+        label: null as unknown as string,
+        icon: null,
+        sort: 0,
+        scope: null,
+      },
+      {
+        path: '/user-management',
+        isMenu: true,
+        label: 'User management',
+        icon: 'Users',
+        sort: 500,
+        scope: 'owner',
+      },
+    ]);
+    const perms = await listPermissionsForRole('MERCHANT', 'member');
+    expect(perms.map((p) => p.path)).toEqual(['/api/device/publish', '/dashboard']);
+    expect(perms.find((p) => p.path === '/api/device/publish')?.label).toBe('/api/device/publish');
+  });
+
+  it('excludes owner-scoped rows for a member and includes them for an owner', async () => {
+    seed([
+      {
+        path: '/user-management',
+        isMenu: true,
+        label: 'User management',
+        icon: 'Users',
+        sort: 500,
+        scope: 'owner',
+      },
+    ]);
+    expect(await listPermissionsForRole('MERCHANT', 'member')).toEqual([]);
+    const ownerPerms = await listPermissionsForRole('MERCHANT', 'owner');
+    expect(ownerPerms).toHaveLength(1);
+  });
+});
+
+describe('listRolePermissions', () => {
+  it('returns all permission rows for a roleId, regardless of scope', async () => {
+    tables['permission'] = [
+      { id: 'p-1', path: '/devices', isMenu: true, label: 'Devices' },
+      { id: 'p-2', path: '/user-management', isMenu: true, label: 'User management' },
+    ];
+    tables['role_permission'] = [
+      { id: 'rp-1', roleId: 'role-9', permissionId: 'p-1', scope: null },
+      { id: 'rp-2', roleId: 'role-9', permissionId: 'p-2', scope: 'owner' },
+    ];
+    const rows = await listRolePermissions('role-9');
+    expect(rows).toEqual([
+      expect.objectContaining({ path: '/devices', isMenu: true, label: 'Devices', scope: null }),
+      expect.objectContaining({
+        path: '/user-management',
+        isMenu: true,
+        label: 'User management',
+        scope: 'owner',
+      }),
+    ]);
+  });
+});
+
+describe('accessDenied', () => {
+  it('redirects to /', () => {
+    expect(() => accessDenied()).toThrow('REDIRECT:/');
   });
 });

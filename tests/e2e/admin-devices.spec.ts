@@ -30,12 +30,13 @@ test.describe('admin device management', () => {
 
     // Reset the reset-target device and confirm via toast. Uses the dedicated
     // e2e-reset-target device so resetting never breaks the register flow
-    // (e2e-register / E2EREGIC1).
-    await page.getByRole('row', { name: /Reset Target Counter/ }).getByRole('button', {
-      name: 'Reset',
-    }).click();
+    // (e2e-register / E2EREGIC1). Reset now lives in the row actions dropdown
+    // (FR-045).
+    const resetRow = page.getByRole('row', { name: /Reset Target Counter/ });
+    await resetRow.getByRole('button', { name: 'Open actions' }).click();
+    await page.getByRole('menuitem', { name: 'Reset' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Reset' }).click();
-    await expect(page.getByText(/organization cleared/i)).toBeVisible();
+    await expect(page.getByText(/merchant cleared/i)).toBeVisible();
   });
 
   test('signed-in user is bounced back to /dashboard from /login', async ({ page }) => {

@@ -57,7 +57,23 @@ export function MemberDetailClient({
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.status}</span>,
+      cell: ({ row }) => {
+        const variantMap: Record<
+          string,
+          'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' | 'info'
+        > = {
+          UNCLAIMED: 'secondary',
+          CLAIMED: 'info',
+          PUBLISHED: 'success',
+          UNPUBLISHED: 'warning',
+          DISABLED: 'destructive',
+        };
+        return (
+          <Badge variant={variantMap[row.original.status] ?? 'secondary'}>
+            {row.original.status}
+          </Badge>
+        );
+      },
     },
     {
       id: 'actions',

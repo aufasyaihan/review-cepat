@@ -119,13 +119,13 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 
 ### Tests for User Story 4
 
-- [x] T020 [P] [US4] E2E: owner dashboard — device list, analytics on `/dashboard`, invite member, owner reset in `tests/e2e/owner-dashboard.spec.ts` (update paths from legacy `(merchant)` routes)
+- [x] T020 [P] [US4] E2E: owner dashboard — device list, analytics on `/dashboard`, owner reset in `tests/e2e/owner-dashboard.spec.ts` (update paths from legacy `(merchant)` routes). **NOTE (FR-022)**: the "invite member" step is removed — no invite action exists on user management
 - [x] T021 [P] [US4] Unit tests for owner-only authorization: analytics + member management denied to `member`; owner sees all org devices — in `domains/{merchant,analytics}/__tests__/` (SC-008)
 
 ### Implementation for User Story 4
 
 - [x] T022 [P] [US4] Migrate `app/(merchant)/dashboard/page.tsx` → `app/(dashboard)/dashboard/page.tsx` (root `/dashboard`): role-aware; owner sees org overview + analytics section (totals, daily, per-device, browser/device/country/city/referrer); member sees device-focused view; TanStack prefetch + phantom-ui skeleton (FR-033)
-- [x] T023 [P] [US4] Migrate `app/(merchant)/members/page.tsx` + `app/(merchant)/members/[memberId]/page.tsx` → `app/(dashboard)/user-management/page.tsx` + `[memberId]/page.tsx` (root `/user-management`): member table, invite form, role display, assigned devices, reassign — toasts on every action (FR-031); owner-gated in-page and via permission model (FR-037)
+- [x] T023 [P] [US4] Migrate `app/(merchant)/members/page.tsx` + `app/(merchant)/members/[memberId]/page.tsx` → `app/(dashboard)/user-management/page.tsx` + `[memberId]/page.tsx` (root `/user-management`): member table, role display, assigned devices, reassign — toasts on every action (FR-031); owner-gated in-page and via permission model (FR-037). **NOTE (FR-022)**: NO invite form on this page — members join only via claim-code self-registration
 - [x] T024 [P] [US4] Migrate `app/(merchant)/devices/[id]/settings/page.tsx` → `app/(dashboard)/devices/[id]/settings/page.tsx`: owner reset (keep-org) with confirmation dialog, assign-to-member selector, unpublish danger actions — each with toast
 - [x] T025 [US4] Ensure analytics aggregation ops `overview()`/`breakdown()` stay owner-only and are consumed by the `/dashboard` section (not a standalone route); remove any legacy `app/(merchant)/analytics/` + `app/(merchant)/(sub-merchant)/analytics/` pages
 
@@ -294,7 +294,7 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 - [x] T072 [P] Extend `domains/analytics/server/service.ts`: `overview(userId, from?: Date, to?: Date)` adds `and(gte(scanEvent.createdAt, from), lte(scanEvent.createdAt, to))` to total/daily/per-device queries; add `adminOverview(userId, from?, to?)` — guards `user.role === 'ADMIN'`, queries ALL `scan_event` rows (optionally date-filtered) with the same daily/per-device shape (FR-044)
 - [x] T073 [P] Update `app/api/analytics/overview/route.ts` to parse `from`/`to` query params as dates (Zod `date`), reject invalid/`from > to`/open-ended ranges with a clear error; add `app/api/analytics/admin-overview/route.ts` — admin-only via `requireApiUser(['ADMIN'])`, same `from`/`to` parsing (FR-044)
 - [x] T074 [P] Update `domains/analytics/api/queries.ts`: `overview(from?, to?)` and `adminOverview(from?, to?)` query keys include the range so date changes refetch; wire `adminOverview` through `lib/http` (FR-044)
-- [x] T075 [US6] Rework `app/(dashboard)/dashboard/admin-dashboard-client.tsx`: render analytics StatCards (total scans, published devices) + per-device and daily breakdowns from `adminOverview` via `useQuery`, with the `DateRangePicker` (T071) controlling `from`/`to`; phantom-ui skeleton while loading; empty state for no scans; keep the existing navigation cards (FR-044)
+- [x] T075 [US6] Rework `app/(dashboard)/dashboard/admin-dashboard-client.tsx`: render analytics StatCards (total scans, published devices) + per-device and daily breakdowns from `adminOverview` via `useQuery`, with the `DateRangePicker` (T071) controlling `from`/`to`; phantom-ui skeleton while loading; empty state for no scans. **NOTE (FR-048/051)**: navigation cards are REMOVED and breakdowns become charts (scan-per-day, scan-per-device) plus admin merchant/user totals in T088/T093 (Phase 16)
 - [x] T076 [P] Register `/api/analytics/admin-overview` as an admin permission row (ADMIN link in `role_permission`, `is_menu=false`, parent `/dashboard`) in `db/seed/permissions.ts` (FR-037/044)
 
 ---
@@ -306,6 +306,72 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
 - [x] T077 [P] Delete any legacy permission files/columns left over: `domains/auth/server/permissions.ts` stripped of `roleMatches`/`findPermissionForPath` legacy helpers; `tests/unit/auth/permissions.test.ts` legacy cases removed; confirm no `permission.roles` or `MERCHANT:owner`/`MERCHANT:member` token references remain in `app/`, `domains/`, `db/`, `tests/` (grep — FR-037)
 - [x] T078 Run `npm run lint`, `npm run typecheck`, `npm run coverage` (≥90%), `npm run build`, then `npm run test:e2e` against the prod build (isolated `review_cepat_test` DB) — full green required
 - [x] T079 Update quickstart.md if any scenario drift is found during T047/T078; confirm Scenarios 1–10 pass (FR-041/042/043/044)
+
+---
+
+## Phase 16: Data-Table Actions, Server-Driven Filters, Terminology, Dashboard, Copy, Badges (FR-045/046/047/048/049/050)
+
+**Purpose**: Session 2026-09-17 directives — frozen right-side Actions column with EllipsisVertical dropdown on every dashboard table, server-driven merchant filtering (combobox + search) on user-management and merchants, "merchants" user-facing terminology, `/dashboard` without a navigation card plus charts, slug copy button, and shadcn `badge` with built-in variants for all status/role pills.
+
+**Independent Test**: On devices, user-management, and merchants views the frozen right-side Actions column shows the correct dropdown per entity; user-management/merchants filter only via server-driven combobox/search (never DataTable column filter); `/dashboard` has no navigation card and shows a chart; the slug copy button works; all status pills are shadcn `badge` variants (quickstart Scenario 11).
+
+### Tests (write first, assert FAIL before implementing)
+
+- [ ] T080 [P] E2E in `tests/e2e/data-table-actions.spec.ts`: device/user-management/merchant tables render a frozen right-side Actions column; EllipsisVertical opens a dropdown (device: Edit/Delete/Reset; user management & merchants: Edit/Delete); each action opens the corresponding dialog (FR-045, SC-014)
+- [ ] T081 [P] E2E in `tests/e2e/filters-terminology.spec.ts`: user-management merchant filtering is server-driven (debounced combobox + search re-fetch with `q`/`organizationId`/`page`/`limit`, no client-side filtering of a loaded list); the merchants search bar re-fetches server-side; user-facing labels/nav/headings use "merchants" not "organization" (FR-046/047/055, SC-015)
+- [ ] T082 [P] E2E in `tests/e2e/dashboard-copy-badges.spec.ts`: `/dashboard` renders NO navigation card and shows analytical charts (scan-per-day and scan-per-device as charts, not lists) plus a summary respecting the date range (FR-048, SC-016); the admin `/dashboard` shows total-merchant and total-user metrics (FR-051, SC-019); a copy button next to a device slug copies `{{BASE_URL}}/s/:id` and fires a success toast (FR-049, SC-017); every device-status/role indicator renders as a shadcn `badge` with a built-in variant, no custom pill (FR-050, SC-018)
+
+### Implementation
+
+- [ ] T083 [P] Add shadcn `badge` (`npx shadcn@latest add badge`) and refactor ALL status/role indicators — device status cells in `components/ui/data-table/` + `app/(dashboard)/devices/`, roles in `app/(dashboard)/user-management/` and `app/(dashboard)/merchants/` — to use `Badge variant="default|secondary|destructive|outline"`; delete custom pill components/classes (FR-050)
+- [ ] T084 [P] Add a reusable `ActionsColumn`/`RowActions` cell to `components/ui/data-table/` rendering a lucide `EllipsisVertical` icon that opens `DropdownMenu` items with per-entity config (device: edit/delete/reset; user management & merchants: edit/delete), each wired to the existing dialogs (FR-045, reuses T048 DataTable + T050 confirmation dialogs); pin the column with `sticky right-0`
+- [ ] T085 [P] Wire the Actions column into the device inventory (`app/(dashboard)/devices/page.tsx`), user management (`app/(dashboard)/user-management/page.tsx`), and merchants (`app/(dashboard)/merchants/page.tsx`) tables via the DataTable column defs (FR-045)
+- [ ] T086 [P] Remove the DataTable column-level merchant/organization filter from `app/(dashboard)/user-management/` and `app/(dashboard)/merchants/` (server-driven combobox + search replaces it per FR-046/055/056; the device inventory KEEPS the DataTable column filter per FR-046) — update `components/ui/data-table/data-table.tsx` so `filterColumnId`/`filterPlaceholder` are no longer used by those two views
+- [ ] T087 [P] Replace user-facing "organization"/"organizations" copy with "merchant"/"merchants" across `app/(dashboard)/`, `components/` (labels, headings, filters, empty states, toasts) — keep `organizationId` and domain identifiers unchanged (FR-047)
+- [ ] T088 [P] Rework `app/(dashboard)/dashboard/admin-dashboard-client.tsx` (and the owner dashboard client): remove navigation cards; add analytical charts (shadcn `chart` / recharts — add `recharts` dep if not present) for scan-per-day and scan-per-device (charts, not lists) plus extra summary stats, all driven by the existing date-range picker (FR-048); admin dashboard adds total-merchant and total-user summary metrics from T093 (FR-051)
+- [ ] T089 [P] Add a copy button beside the device slug in the device inventory row/table (and on any slug display) copying `{{BASE_URL}}/s/:id` via `navigator.clipboard` (client component) with a success toast (FR-049)
+- [ ] T093 [P] Extend `domains/analytics/server/service.ts` + `app/api/analytics/admin-overview/route.ts`: `adminOverview` adds merchant count (org rows) and user count (platform accounts) alongside scan totals; unit tests assert counts return and remain admin-only (FR-051)
+
+**Checkpoint**: All FR-045–051 directives implemented; quickstart Scenario 11 passes.
+
+---
+
+## Phase 17: Admin User & Merchant CRUD + Server-Driven Lists + Dialog Rules (FR-039/040/046/052/053/054/055/056)
+
+**Purpose**: Session 2026-09-17 CRUD + lazy directives — admin full CRUD for user accounts and merchant orgs, server-driven (debounced) list/search on user-management and merchants, infinite TanStack Query merchant combobox (never `prefetchQuery`), device row Edit as an in-place dialog, and `AlertDialog` confirmations on ALL destructive actions (device disable/delete/reset, user delete, merchant delete, session revoke).
+
+**Independent Test**: Admin creates/edits/deletes users and merchants via dialogs (incl. moving a user between orgs), sees both lists re-fetch server-side on debounced search/combobox (network tab shows `q`/`organizationId`/`page`/`limit`), device Edit never navigates, and every destructive action refuses to execute until an `AlertDialog` confirms (quickstart Scenario 12; SC-015/020/021/023/024).
+
+### Tests (write first, assert FAIL before implementing)
+
+- [ ] T094 [P] Unit tests in `tests/unit/merchant/`: `createUserAction` admin-only + account/org/role assignment (no email invitation, FR-022 superseded for admin-provisioned accounts); `updateUserAction` renames/edits email/role, reassigns org (updates device assignments on move, FR-053), rejects moving/deleting the last `owner` unless ownership first reassigned (Edge Cases 2026-09-17, Better Auth last-owner protection); `deleteUserAction` removes membership AND deactivates the platform account (FR-052, data-model.md user/member)
+- [ ] T095 [P] Unit tests in `tests/unit/merchant/`: `createOrganizationAction` creates only the org shell (business name, NO owner); `updateOrganizationAction` renames + assigns owner from existing accounts; `deleteOrganizationAction` handles devices/members per dialog decision (blocked OR unbound/deactivated) (FR-054, data-model.md organization)
+- [ ] T096 [P] E2E in `tests/e2e/admin-user-merchant-crud.spec.ts`: as ADMIN — Add user (name/email/password + org + role) → list shows it; Edit → rename/re-role/move-org; Delete → account deactivated (SC-020). Add merchant (business name only) → no owner; Edit → assign owner; Delete (SC-021). Destructive steps require `AlertDialog` confirm (SC-024)
+- [ ] T097 [P] E2E in `tests/e2e/lazy-server-lists.spec.ts`: user-management combobox + search and merchants search each re-fetch server-side (debounced `q`/`organizationId`/`page`/`limit` visible in network requests); combobox options stream via infinite TanStack Query (no `prefetchQuery`); empty/exhausted states render instead of erroring (FR-055/056, SC-015, Edge Cases)
+
+### Implementation
+
+- [ ] T098 [P] Add server-driven list handlers to `domains/merchant/server/service.ts` (or `org-actions.ts`/`member-actions.ts`): `listUsers({ q?, organizationId?, page, limit })` and `listOrganizations({ q?, page, limit })` — debounced `q` full-text/ILIKE search, optional `organizationId` filter, server-side `page`/`limit` pagination + total count (FR-055)
+- [ ] T099 [P] Add admin user CRUD routes/actions: `POST /api/members` (create) + `PATCH/DELETE /api/members/:memberId` (update/delete) in `app/api/members/route.ts` + `app/api/members/[memberId]/route.ts`, backed by `createUserAction`/`updateUserAction`/`deleteUserAction` (org reassignment re-evaluates role + updates device assignments; delete deactivates account); admin-only via `requireApiPermission` + `requireRole('ADMIN')` (FR-052/053)
+- [ ] T100 [P] Add admin merchant CRUD routes/actions: `POST /api/organizations` (create shell) + `PATCH/DELETE /api/organizations/:id` (update/delete) in `app/api/organizations/route.ts` + `app/api/organizations/[id]/route.ts`, backed by `createOrganizationAction`/`updateOrganizationAction`/`deleteOrganizationAction`; admin-only (FR-054)
+- [ ] T101 [P] Add `domains/merchant/api/queries.ts`: `adminUserListQueries` (q/organizationId/page/limit keyed) + `adminMerchantListQueries` (q/page/limit keyed) via TanStack `useQuery`, and `merchantOptionsQuery` for the user-management combobox via `useInfiniteQuery` against `GET /api/organizations` (debounced `q` + `page`/`limit` pages) — NEVER `prefetchQuery` for options (FR-056, constitution III)
+- [ ] T102 [P] Rebuild `app/(dashboard)/user-management/user-management-client.tsx`: replace the DataTable column filter with a merchant (organization) combobox (infinite options) + debounced search box driving server re-fetch (`q`/`organizationId`/`page`/`limit`); toolbar "Add user" dialog (name/email/password + org + role); row Edit dialog (name/email/role/org move/devices); row Delete via `AlertDialog` (removes membership + deactivates account); every mutation runs a dialog (FR-040) with confirmation (FR-039) + toast (FR-031) (FR-046/052/053/055/056, SC-015/020)
+- [ ] T103 [P] Rebuild `app/(dashboard)/merchants/admin-merchants-client.tsx`: server-driven debounced search box + server-side pagination; toolbar "Add merchant" dialog (business name only); row Edit dialog (rename + assign owner from existing accounts); row Delete via `AlertDialog`; every mutation runs a dialog (FR-040) with confirmation (FR-039) + toast (FR-031) (FR-046/054/055, SC-015/021)
+- [ ] T104 [P] Convert device row "Edit" in `app/(dashboard)/devices/admin-devices-client.tsx` and `app/(dashboard)/devices/devices-client.tsx` from `router.push(\`/devices/${id}\`)` to an in-place edit dialog — no navigation (FR-040, SC-023)
+- [ ] T105 [P] Wrap every destructive device action in a shadcn `AlertDialog` in `app/(dashboard)/devices/admin-devices-client.tsx`, `app/(dashboard)/devices/devices-client.tsx`, and `app/(dashboard)/devices/[id]/settings/settings-client.tsx`: Disable, Delete, Reset (owner + admin scopes); confirm `components/ui/alert-dialog.tsx` generated (`npx shadcn@latest add alert-dialog`) (FR-039, SC-024)
+- [ ] T106 [P] Add permission rows + ADMIN `role_permission` links in `db/seed/permissions.ts` for the new admin routes: `POST/PATCH/DELETE /api/members` + `/api/members/:memberId`, `POST/PATCH/DELETE /api/organizations` + `/api/organizations/:id` (`is_menu=false`, `parent_id` → user-management / merchants nav rows); run `npm run db:seed` (FR-037/052/054)
+
+**Checkpoint**: Admin CRUD lives in dialogs, both admin lists are server-driven with infinite combobox, and every destructive action is `AlertDialog`-gated. quickstart Scenario 12 passes.
+
+---
+
+## Phase 18: Final Verification (Session 2026-09-17)
+
+**Purpose**: Full green sweep with the new data-table/badge/dashboard/copy/CRUD/server-driven/dialog work.
+
+- [ ] T107 Run `npm run lint`, `npm run typecheck`, `npm run coverage` (≥90%), `npm run build`, then `npm run test:e2e` against the prod build (isolated `review_cepat_test` DB) — full green required
+- [ ] T108 Confirm quickstart.md Scenarios 1–12 all pass locally; fix any scenario drift (FR-044–056)
+- [ ] T109 [P] Update `db/seed/permissions.ts` only if new dashboard chart/analytics endpoints (or the Phase 17 member/organization admin routes from T106) need permission rows; confirm no leftover `/invite` or `/api/member/invite` permission/API references (FR-022/037)
 
 ---
 
@@ -323,6 +389,9 @@ description: "Task list for the NFC QR Redirect platform UI rebuild + route rest
   - US8 (Phase 10): independent of all other stories
 - **Phase 13 (permission normalization)**: Depends on Phase 2 legacy shell being stable; MUST precede Phase 14 (admin list APIs + client nav) and final verification
 - **Phase 14 (admin analytics)**: Depends on Phase 13 (client nav + list APIs) and on US4 analytics shape (T025) for the admin aggregate
+- **Phase 16 (FR-045–051)**: Depends on T048 DataTable, T050 confirmation dialogs, and Phase 14 admin dashboard (T075's nav-card retention is superseded by FR-048); tests T080–T082 written first; T088 depends on T093 (admin merchant/user counts)
+- **Phase 17 (admin CRUD + server-driven lists + dialog rules)**: Depends on Phase 16 (Actions column T080–T085, merchants terminology T087) and on Phase 14 admin API/list infrastructure (T061–T063, T073) — tests T094–T097 written first; T102/T103 rework the same client views touched by T085/T086/T087 so must follow them; T105 depends on `alert-dialog` existing; T106 (seed) after T099/T100 routes exist
+- **Phase 18 (final verification)**: Depends on Phase 16 and Phase 17
 - **Polish (Phase 11, 15)**: Depends on all stories being complete
 
 ### User Story Dependencies
@@ -386,6 +455,52 @@ Task: "Seed /api/analytics/admin-overview permission row (T076)"
 
 ---
 
+## Parallel Example: Phase 16
+
+```bash
+# Tests first (FALSE-FAIL):
+Task: "E2E: frozen action column + dropdown per entity (T080)"
+Task: "E2E: server-driven filter + merchants terminology (T081)"
+Task: "E2E: dashboard chart + copy button + badge variants (T082)"
+
+# Then implementation (file-disjoint):
+Task: "Add shadcn badge + refactor all status/role pills (T083)"
+Task: "Add EllipsisVertical ActionsColumn to data-table (T084)"
+Task: "Wire Actions column into devices/user-management/merchants (T085)"
+Task: "Remove DataTable column-level org filter where server-driven replaces it (T086)"
+Task: "Merchants terminology replacement (T087)"
+Task: "Dashboard nav-card removal + charts (T088)"
+Task: "Admin merchant/user counts in adminOverview (T093)"
+Task: "Slug copy button (T089)"
+```
+
+---
+
+## Parallel Example: Phase 17
+
+```bash
+# Tests first (FALSE-FAIL):
+Task: "Unit tests: user CRUD actions + last-owner guard + deactivate (T094)"
+Task: "Unit tests: merchant CRUD actions + org shell no-owner (T095)"
+Task: "E2E: admin user/merchant CRUD via dialogs + AlertDialog deletes (T096)"
+Task: "E2E: server-driven lazy lists + infinite combobox (T097)"
+
+# Then API/domain layer (file-disjoint):
+Task: "Server-driven list handlers listUsers/listOrganizations (T098)"
+Task: "Admin user CRUD routes/actions /api/members (T099)"
+Task: "Admin merchant CRUD routes/actions /api/organizations (T100)"
+Task: "domains/merchant/api/queries.ts — useInfiniteQuery combobox + list queries (T101)"
+Task: "Permission rows for member/organization admin routes (T106)"
+
+# Then UI integration (in order — same client files as Phase 16):
+Task: "Rebuild user-management client: combobox + search + Add/Edit/Delete dialogs (T102)"
+Task: "Rebuild merchants client: search + Add/Edit/Delete dialogs (T103)"
+Task: "Convert device row Edit router.push -> in-place dialog (T104)"
+Task: "AlertDialog on every destructive device action (T105)"
+```
+
+---
+
 ## Implementation Strategy
 
 ### MVP First (US1 + US3 + US8 — no legacy migration risk)
@@ -405,6 +520,9 @@ Task: "Seed /api/analytics/admin-overview permission row (T076)"
 6. Phase 13: normalize permissions + ADMIN bypass + list APIs + client nav
 7. Phase 14: admin analytics with date-range picker
 8. Polish: delete legacy groups, framer-motion auth, WCAG, full suite
+9. Phase 16: FR-045–051 data-table actions/server-driven filters/terminology/dashboard/copy/badges
+10. Phase 17: admin user+merchant CRUD, server-driven lists + infinite combobox, device edit dialog, `AlertDialog` on all destructive actions
+11. Phase 18: final verification
 
 ### Parallel Team Strategy
 
@@ -418,6 +536,8 @@ With multiple developers:
 3. US5/US6 follow US4 as file-disjoint page migrations
 4. Phase 13: one dev on schema/seed, one on service/routes
 5. Phase 14: one dev on picker/UI, one on analytics service + routes
+6. Phase 16: one dev on data-table actions/badges, one on dashboard/copy/filter
+7. Phase 17: one dev on admin routes/actions (T098–T101/T106), one on UI dialogs + server-driven clients (T102–T105)
 
 ---
 
@@ -429,3 +549,5 @@ With multiple developers:
 - Permission rows are the single source of truth for sidebar nav + endpoint access — a page without a matching `permission`/`role_permission` row for the role is unreachable
 - Migrations must keep `npm run typecheck` green at every checkpoint
 - Verification commands: `npm run coverage` (≥90%), `npm run test:e2e`, `npm run build`
+- Phase 16 notes: user-management has NO invite/add-member action (FR-022); user-management & merchants filtering is server-driven — debounced combobox (infinite TanStack Query) + search box with `q`/`organizationId`/`page`/`limit`, never DataTable-column-only, never client-side (FR-046/055/056); the device inventory KEEPS the DataTable column filter (FR-046); status/role pills use shadcn `badge` built-in variants only (FR-050); action columns are frozen right (FR-045); `/dashboard` has no navigation card (FR-048); scan-per-day and scan-per-device render as charts, not lists, on both owner and admin dashboards (FR-048); admin dashboard shows total-merchant and total-user summary metrics (FR-051); slug copy button copies `{{BASE_URL}}/s/:id` (FR-049)
+- Phase 17 notes: every destructive action — device Disable/Delete/Reset, user Delete, merchant Delete, session revoke / "Revoke all others" — MUST be confirmed in a shadcn `AlertDialog` (FR-039, SC-024); reversible state changes (publish, unpublish, assign/unassign, transfer) use the standard confirmation Dialog; device row "Edit" opens an in-place dialog and NEVER `route.push`es to `/devices/[id]` (FR-040, SC-023); moving/deleting a user who is the last `owner` of an org is rejected unless ownership is reassigned first (Edge Cases 2026-09-17)

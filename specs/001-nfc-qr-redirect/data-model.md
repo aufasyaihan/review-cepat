@@ -22,12 +22,19 @@ platform `role` claim.
 - **Roles**: `ADMIN` users hold a platform-admin account and belong to no organization.
   `MERCHANT` users act within one or more organizations via `member` rows
   (Better Auth organization plugin).
+- **Admin management (FR-052/053)**: an admin can create a platform account directly
+  (name/email/password, assigned to an org with role owner/member — no email
+  invitation), edit name/email/role, reassign the user's org membership (moving the user
+  from one organization to another), assign/disassign devices, and delete (removes
+  membership AND deactivates the account — `status = 'DEACTIVATED'`).
 - **Relationships**: 1—N memberships (member); N—M organizations through `member`.
 
 ### organization (Better Auth plugin)
 
-A merchant business. Created when the first owner registers; the creator is assigned the
-`owner` role by the plugin.
+A merchant business. Created either when the first owner registers (plugin/claim-code
+flow) or by an **admin merchant-create dialog** (FR-054) — an org shell holding the
+business name with **no owner assigned at creation**; the owner is attached later via
+the edit dialog.
 
 - **Fields**: `id`, `name`, `slug` (unique), `logo?`, `metadata?` (JSON), `createdAt`,
   `updatedAt`.
@@ -42,23 +49,31 @@ A user's role inside an organization.
   `role: 'owner' | 'member'`, `createdBy?`, `createdAt`.
 - **Validation**: unique (`organizationId`, `userId`); roles restricted to `owner`
   (reseller) and `member` (sub-merchant). Better Auth last-owner protection prevents
-  removing the last owner.
+  removing the last owner — moving or deleting a user who is the last `owner` of an
+  organization is rejected with a clear error unless ownership is reassigned first.
+  Admin can move a user between organizations (`organizationId`/role updated per the
+  destination org rules) (FR-053).
 - **Relationships**: N—1 organization; N—1 user; 1—N assigned devices (`device.memberId`).
 
 ### invitation (Better Auth plugin)
 
-Pending membership invites sent by the owner.
+Ships with the Better Auth organization plugin. **Unused by the MVP UI** — there is no
+invite/add-member flow (FR-022); members join organizations by self-registering via a
+device claim code (FR-024) or when an admin provisions the account directly (FR-052).
+Kept because the plugin owns the table.
 
 - **Fields**: `id`, `organizationId` (FK), `email`, `role`, `status`, `expiresAt`,
   `inviterId?`, `createdAt`.
 - **Validation**: status lifecycle managed by Better Auth; invitations expire (48h default).
+- **Relationships**: N—1 organization.
 
 ### device
 
 A physical NFC tag or QR code with a platform identity, bound to an organization.
 
 - **Fields**: `id` (uuid PK), `slug` (unique, public URL path segment, immutable),
-  `name`, `status: 'UNCLAIMED' | 'CLAIMED' | 'PUBLISHED' | 'UNPUBLISHED' | 'DISABLED'`,
+  `name`, `status: 'UNCLAIMED' | 'CLAIMED' | 'PUBLISHED' | 'UNPUBLISHED' | 'DISABLED' |
+  'DELETED'`,
   `organizationId` (FK → organization, required, bound at admin creation/sale),
   `memberId?` (FK → member, per-device sub-merchant assignment),
   `boundUserId?` (FK → user, the account that registered/claimed via the claim code),
@@ -176,6 +191,9 @@ PUBLISHED ──merchant unpublish──▶ UNPUBLISHED
 UNPUBLISHED ──merchant publish──▶ PUBLISHED        (re-publish allowed)
 {CLAIMED|PUBLISHED|UNPUBLISHED} ──admin disable──▶ DISABLED
 DISABLED  ──admin re-enable──▶   CLAIMED           (admin action)
+ANY ──admin delete──▶ DELETED (soft delete: hidden from all lists; destinations,
+                              member assignment, scan events retained for audit —
+                              admin-only, confirmation dialog, FR-040/045)
 ANY ──owner reset──▶ CLAIMED (destinations cleared, memberId + boundUserId nulled,
                               organizationId KEPT, claim code rotated)   [FR-028]
 ANY ──admin reset──▶ UNCLAIMED (destinations cleared, memberId + boundUserId nulled,
@@ -184,8 +202,8 @@ ANY ──transfer/ownership move──▶ another organization or member
                               (status preserved; reassign organizationId/memberId)
 ```
 
-- `DISABLED`, `UNPUBLISHED`, `UNCLAIMED`, and ownerless/`CLAIMED` devices resolve scans
-  to the INACTIVE outcome (no redirect, no landing links).
+- `DISABLED`, `UNPUBLISHED`, `UNCLAIMED`, `DELETED`, and ownerless/`CLAIMED` devices
+  resolve scans to the INACTIVE outcome (no redirect, no landing links).
 - Resets rotate the claim code (fresh hash) so the device can be set up again.
 - Account binding (`boundUserId`) and member assignment (`memberId`) are separate from
   status: a device can be PUBLISHED via accountless setup while `boundUserId` is still
@@ -194,10 +212,15 @@ ANY ──transfer/ownership move──▶ another organization or member
 ## Authorization Visibility
 
 - `owner` (reseller) — sees analytics + every device where `device.organizationId` is
-  in one of their organizations; can manage members and reset (keep-org) their devices.
+  in one of their organizations; can manage members (view/role-edit/remove — no
+  invite/add) and reset (keep-org) their devices.
 - `member` (sub-merchant) — sees only devices where `device.memberId = <their member row>`
   (FR-025/027, SC-008); device management only; analytics and member management denied.
 - `ADMIN` — sees all organizations and devices; can disable devices and reset (clear-org).
+  Admin user-management/merchants lists are **server-driven** (debounced `q`/
+  `organizationId`/`page`/`limit` queries, FR-055); the admin also performs full CRUD on
+  user accounts (FR-052) and merchant organizations (FR-054) with admin-only guard checks
+  bypassed per FR-041.
 
 ## Indexes / Constraints (summary)
 

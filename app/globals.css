@@ -23,6 +23,9 @@
   --destructive: oklch(0.577 0.245 27.325);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.72 0.19 68);
+  --success: oklch(0.596 0.145 163.225);
+  --info: oklch(0.585 0.121 242.847);
+  --warning: oklch(0.76 0.19 84.429);
   --chart-1: oklch(0.72 0.19 68);
   --chart-2: oklch(0.55 0.14 200);
   --chart-3: oklch(0.62 0.2 30);
@@ -73,6 +76,9 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-warning: var(--warning);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -106,6 +112,9 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.78 0.17 68);
+  --success: oklch(0.788 0.146 158.481);
+  --info: oklch(0.759 0.103 239.471);
+  --warning: oklch(0.828 0.153 87.417);
   --chart-1: oklch(0.72 0.19 68);
   --chart-2: oklch(0.55 0.14 200);
   --chart-3: oklch(0.62 0.2 30);

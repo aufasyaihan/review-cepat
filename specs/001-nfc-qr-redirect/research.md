@@ -45,8 +45,14 @@ command input, the canonical architecture document, and the clarified spec
   (`organization`, `member`, `invitation`) added via `npx @better-auth/cli migrate`.
 - **Rationale**: Constitution VII mandates Better Auth + RBAC; the user's clarified
   requirement is explicitly "integrate Better Auth's organization" — the plugin
-  provides roles, invitations, and member management (add-member, invite, last-owner
-  protection) so the reseller/sub-merchant hierarchy needs no custom auth code.
+  provides roles, invitations, and member management so the reseller/sub-merchant
+  hierarchy needs no custom auth code. **Note (Session 2026-09-17, FR-022/052)**: the
+  user-management UI MUST NOT expose an invite or self-service add-member flow;
+  sub-merchants join an organization by self-registering via a device claim code
+  (FR-024) OR when an admin provisions the account directly (FR-052; no email
+  invitation). The plugin's `invitation` table still exists (ships with the plugin) but
+  is unused by the MVP UI. Admin can also move a user from one organization to another
+  via the edit-user dialog (FR-053).
 - **Alternatives considered**: flat merchant accounts (superseded by clarification),
   custom member model on `merchant_profile` (duplicates the plugin — rejected).
 
@@ -235,9 +241,82 @@ command input, the canonical architecture document, and the clarified spec
   analytical data, create date-picker for filtering". Reusing the reference picker keeps
   the preset/locale/UX identical; passing `from`/`to` to the service keeps filtering in
   SQL rather than client-side.
+- **Update (Session 2026-09-17, FR-048)**: the `/dashboard` page renders NO navigation
+  card; it shows analytical data plus a chart/graph (scan volume over time) alongside
+  the summary, all respecting the active date range.
+- **Update (Session 2026-09-17, FR-051)**: "Scan per day" and "scan per device"
+  breakdowns render as **charts, not lists**, on both owner and admin dashboards; the
+  admin dashboard additionally shows **total-merchant** (org count) and **total-user**
+  (platform account count) summary metrics via `adminOverview`. Charting uses shadcn
+  `chart` (recharts).
 - **Alternatives considered**: client-side filtering of a full dump (rejected — unscalable),
   date inputs without presets (rejected — mandated picker look), no admin aggregate
   (rejected — requirement is all-merchant analytics).
+
+## 17. Data-Table Actions, Filters, and Copy-to-Clipboard
+
+- **Decision**: Every dashboard data table (device inventory, user management,
+  merchants) ships an **Actions column** — a lucide `EllipsisVertical` icon opening a
+  dropdown — **frozen (pinned) to the right side** of the table (FR-045). Menu items:
+  device → Edit / Delete / Reset; user management → Edit / Delete (admin added to
+  toolbar: "Add user"); merchants → Edit / Delete (admin added to toolbar: "Add
+  merchant"). Each item or toolbar action opens the corresponding dialog
+  (FR-039/040). The device row **Edit MUST open an in-place dialog, never
+  `route.push`** to `/devices/[id]` (FR-040). Wherever a device slug is shown, an
+  adjacent copy button copies `{{BASE_URL}}/s/:id` with a success toast (FR-049).
+- **Server-driven filtering (Session 2026-09-17, supersedes FR-046 for user-management
+  & merchants)**: the user-management view filters by a merchant (organization)
+  combobox plus a search box, and the merchants view has a search box; each re-fetches
+  the list from the server with **debounced query params** (`q`, `organizationId`
+  where applicable, `page`, `limit`) — no client-side filtering of an already-loaded
+  list (FR-055). The merchant combobox **option list** loads via **TanStack Query
+  `useInfiniteQuery`** — pages stream as the admin types (`q`) and scrolls — and MUST
+  NOT use `prefetchQuery` for the option list (FR-056). The DataTable column filter
+  remains for device inventory.
+- **Admin CRUD dialogs (Session 2026-09-17, FR-052/053/054)**: user-management —
+  Create (name/email/password + org + role), Edit (name, email, role, reassign org
+  incl. move user between organizations, assign/disassign devices), Delete (remove
+  membership + deactivate account); merchants — Create (org shell with business name
+  only, no owner), Edit (business name, assign owner from existing accounts), Delete
+  (removes org). All via dialogs with confirmation and toasts.
+- **Session revoke confirmation (FR-039/SC-022)**: the Settings active-sessions
+  "Revoke all others" (and revoke a session) actions are gated by a shadcn
+  `AlertDialog` confirmation before executing.
+- **Rationale**: User-direct mandates ("EllipsisVertical icon using dropdown… apply on
+  user management and merchant… action column should be a frozen column", "use the data
+  table header filter", "add copy button on the slug", device Edit "should open a dialog
+  to edit it", "revoke button to have an alert dialog first"). Freezing the action
+  column to the right keeps row actions reachable while data columns scroll; the
+  user-management/merchant lists and their filter options are server-driven to stay
+  correct and responsive as rows grow.
+- **Alternatives considered**: inline row action buttons (rejected — crowded columns),
+  left-pinned action column (rejected — right-pinned chosen), unfrozen action column
+  (rejected — mandated frozen), client-side filtering (rejected — "do not filter client
+  side"), `prefetchQuery` combobox options (rejected — user mandated infinite query).
+
+## 19. Badge Rendering
+
+- **Decision**: Every status/role pill (device status, membership role, any state
+  badge) renders with the shadcn `badge` component (`npx shadcn@latest add badge`)
+  using its built-in `variant` prop — `default`, `secondary`, `destructive`, `outline`
+  (FR-050). No custom pill component, no hand-rolled variant classes.
+- **Rationale**: User-direct mandate "change it to using badge instead, for the variant
+  use badge variant not custom". Mapping device statuses to existing variants (`published`
+  → default, `unpublished`/`unclaimed` → secondary, `disabled`/`deleted` → destructive,
+  etc.) keeps theming consistent with the rest of the design system and removes
+  bespoke styling.
+- **Alternatives considered**: kebab/pill span components (rejected), per-status custom
+  Tailwind classes (rejected — mandate is built-in variants only).
+
+## 18. Terminology: merchants vs. organizations
+
+- **Decision**: User-facing copy (labels, nav, headings, filters) says **"merchants"**
+  / **"merchant"**; technical/domain identifiers keep Better Auth's **organization**,
+  the `organizationId` field, and the org plugin (FR-047).
+- **Rationale**: User-direct mandate "change the wording from organization to
+  merchants". Renaming the domain model would fork the Better Auth plugin; scoping the
+  change to presentation copy is the lazy correct fix.
+- **Alternatives considered**: full domain rename (rejected — would fork the plugin).
 
 ## 16. Testing Framework
 

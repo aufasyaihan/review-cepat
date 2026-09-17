@@ -48,6 +48,29 @@ permission links are still seeded so the sidebar/self-list render everything fro
 rows. Analytics renders inside the Dashboard (owner role) as a date-filterable view, and
 the admin `/dashboard` shows a cross-merchant aggregate with a date-range picker (FR-044).
 
+**UI directives (Session 2026-09-17)**: `/dashboard` renders NO navigation card — only
+analytical data and charts (scan-per-day and scan-per-device as charts, not lists) on
+both owner and admin dashboards (FR-048); the admin dashboard additionally shows
+total-merchant and total-user summary metrics (FR-051). Every data table (device
+inventory, user management, merchants) has a frozen right-side Actions column with an
+EllipsisVertical dropdown (device: Edit/Delete/Reset; user management & merchants:
+Edit/Delete) opening dialogs (FR-045); the device row "Edit" MUST open an in-place
+dialog — never `route.push` to `/devices/[id]` (FR-040). On the user-management and
+merchants views, filtering/searching is **server-driven**: a merchant (organization)
+combobox plus search on user-management and a search box on merchants each re-fetch
+from the server with debounced query params (`q`, `organizationId`, `page`, `limit`);
+the combobox option list loads via infinite TanStack Query (`useInfiniteQuery`), never
+`prefetchQuery`; no client-side filtering of an already-loaded list (FR-046/055/056).
+Status/role indicators use the shadcn `badge` component with built-in variants only
+(FR-050); device slugs show a copy button that copies `{{BASE_URL}}/s/:id` with a toast
+(FR-049); user-facing copy says "merchants" not "organization" (FR-047). Admin gets full
+CRUD for user accounts (create name/email/password + org + role; edit name/email/role/
+org/devices including moving a user from one org to another; delete deactivates the
+account) via dialogs (FR-052/053) and for merchant organizations (create org shell with
+business name only, owner assigned later; edit name + owner; delete) via dialogs
+(FR-054). Destructive session-management actions on Settings — revoke a session or
+"Revoke all others" — MUST be preceded by a shadcn `AlertDialog` confirmation (FR-039).
+
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x (strict mode) on Node.js 22 LTS runtime,
@@ -59,7 +82,10 @@ Next.js 16.3.5 (App Router, `export const runtime = 'nodejs'` on route handlers/
 - Drizzle ORM (mysql2 driver) + drizzle-kit (generate/migrate workflow)
 - Better Auth (Drizzle adapter, MySQL) + `@better-auth/drizzle-adapter`,
   `organization()` plugin + `organizationClient()` (org = merchant, roles `owner`+`member`)
-- TanStack Query v5 — SSR prefetch + HydrationBoundary + useSuspenseQuery
+- TanStack Query v5 — SSR prefetch + HydrationBoundary + useSuspenseQuery; **server-driven
+  lazy lists** use debounced `useQuery` with `page`/`limit`/`q`/`organizationId` params and the
+  merchant combobox uses **`useInfiniteQuery`** (option pages stream on type/scroll — never
+  `prefetchQuery` for the option list) (FR-055/056)
 - TanStack Form + Zod — type-safe forms validated at every input boundary
 - shadcn/ui (design system, added via CLI, **Base UI** primitives) + `sidebar` shell
 - phantom-ui (`@aejkatappaja/phantom-ui`) — structure-aware skeleton loading (loading.tsx / Suspense)
@@ -160,7 +186,16 @@ root paths and permission-driven nav is pure routing/composition, and each page 
 data via TanStack Query (II); the accountless setup and scan routes are server components
 with `loading.tsx`/Suspense skeletons (II/IV); framer-motion is a client-only animation
 for auth screens with no data fetching, so it complies with II and needs no loading-state
-exemption. Gate status after Phase 1: all PASS.
+exemption. Chart rendering (shadcn `chart`/recharts, FR-048/051) is client-side inside
+`(dashboard)` components that consume analytics via `useSuspenseQuery` from the domain API
+(III) — data flows through TanStack Query, never fetched in components, so no new
+constitution violation. Admin user/merchant CRUD (FR-052/053/054) lands in
+`domains/merchant/server/*-actions.ts` + the two new server-driven list route handlers
+(`/api/members`, `/api/organizations`) — business logic stays in the domain, `app/` only
+wires routes/composition (I); list consumers use `useQuery`/`useInfiniteQuery` from the
+domain API layer, not `fetch()` (III); create/delete dialogs and the `AlertDialog`
+session-revoke flow are client-only `Dialog`/`AlertDialog` components with no data
+fetching (II). Gate status after Phase 1: all PASS.
 
 ## Project Structure
 
@@ -202,16 +237,16 @@ app/                                # routing + composition only (no business lo
 │   ├── layout.tsx                  # auth guard + sidebar shell + next-themes; sync, no fetch, no nav data
 │   ├── loading.tsx
 │   ├── error.tsx
-│   ├── dashboard/page.tsx          # /dashboard — role-aware; owner analytics (date-filtered) + admin aggregate (FR-044)
+│   ├── dashboard/page.tsx          # /dashboard — role-aware; owner analytics (date-filtered) + admin aggregate (FR-044/051); scan-per-day & scan-per-device charts (FR-048)
 │   ├── devices/
 │   │   ├── page.tsx                # /devices — admin: all; owner: org; member: assigned (FR-025/027)
 │   │   ├── new/page.tsx            # /devices/new — admin only; create + assign org (FR-026)
 │   │   ├── claim/page.tsx          # /devices/claim — claim code → login-or-register (FR-005)
 │   │   └── [id]/
-│   │       ├── page.tsx            # /devices/[id] — configure destinations / publish
+│   │       ├── page.tsx            # /devices/[id] — configure destinations / publish; reached via detail/claim, NEVER via row Edit (FR-040)
 │   │       └── settings/page.tsx   # /devices/[id]/settings — assign member, reset, unpublish
-│   ├── user-management/page.tsx    # /user-management — admin + reseller only (invite/assign, FR-021/022)
-│   ├── merchants/page.tsx          # /merchants — admin only; org list (FR-018)
+│   ├── user-management/page.tsx    # /user-management — admin + reseller owner (member list + Edit/Delete; admin: toolbar Add user; NO invite — FR-022/045/052). Admin list is server-driven (debounced search + merchant combobox via useInfiniteQuery, no prefetchQuery — FR-055/056); edit dialog supports moving a user to another merchant org (FR-053)
+│   ├── merchants/page.tsx          # /merchants — admin only; org list (FR-018) with server-driven debounced search + toolbar Add merchant; create/edit/delete merchant dialogs (FR-054/055)
 │   └── settings/page.tsx           # /settings — all roles (profile, org, theme)
 ├── (redirect)/                     # public device URL space (NO theme provider)
 │   ├── s/[slug]/                   # public scan resolution
@@ -226,7 +261,10 @@ app/                                # routing + composition only (no business lo
     ├── permissions/route.ts        # GET /api/permissions — caller's permitted nav + API paths (FR-042)
     ├── roles/[roleId]/permissions/route.ts  # GET /api/roles/:roleId/permissions — admin-only (FR-042)
     ├── analytics/overview/route.ts # GET /api/analytics/overview?from&to (FR-044)
-    ├── analytics/admin-overview/route.ts   # GET /api/analytics/admin-overview?from&to — admin cross-merchant (FR-044)
+    ├── analytics/admin-overview/route.ts   # GET /api/analytics/admin-overview?from&to — admin cross-merchant incl. merchant/user counts (FR-044/051)
+    ├── members/route.ts            # GET /api/members?q&organizationId&page&limit — admin server-driven user list (FR-052/055)
+    ├── members/[memberId]/route.ts # admin member CRUD actions (edit incl. move-org, delete/deactivate) — FR-052/053
+    ├── organizations/route.ts      # GET /api/organizations?q&page&limit — admin server-driven merchant list (FR-054/055)
     └── ...                         # thin per-domain HTTP translations
 ```
 
@@ -235,6 +273,8 @@ components/                         # shared UI: shadcn/ui (Base UI primitives)
 ├── common/                         # toasts, centered-auth wrapper, skeletons
 ├── ui/                             # shadcn-generated components (cli: shadcn add ...)
 │   ├── table.tsx                   # shadcn table primitives
+│   ├── badge.tsx                   # shadcn badge — ALL status/role pills use built-in variants only (FR-050)
+│   ├── chart.tsx                   # shadcn chart (recharts) — scan-per-day & scan-per-device render as charts (FR-048), admin summary charts (FR-051)
 │   ├── calendar.tsx / popover.tsx  # shadcn primitives for the date-range picker (shadcn add calendar popover)
 │   ├── date-range-picker.tsx       # presets + 2-month range calendar + reset/apply; from reference date-range-picker.tsx (FR-044)
 │   └── data-table/                 # reusable DataTable on @tanstack/react-table: data-table.tsx, -header, -pagination, -skeleton, -view-options (FR-038)
@@ -269,11 +309,11 @@ drizzle/                            # drizzle-kit generated migrations (sql + me
 domains/
 ├── auth/                           # Better Auth + organization plugin config, RBAC
 │   └── server/permissions.ts       # can(role,orgRole,path) from master_role/permission/role_permission; ADMIN bypass; listNavForRole-equivalent self-list behind GET /api/permissions
-├── merchant/                       # org lifecycle, sub-merchant invite/assign (FR-021/022/027)
+├── merchant/                       # org lifecycle, member management (claim-code join, NO invite), device assign
 ├── device/                         # identity, claim codes, setup, lifecycle (publish/disable/reset/rotate)
 ├── destination/                    # single/multi-link config, Google review via Places
 ├── scan/                           # resolution: redirect + landing, scan event recording
-└── analytics/                      # owner metrics aggregation (overview(from?,to?)) + admin cross-merchant aggregate (adminOverview(from?,to?)) (FR-044)
+└── analytics/                      # owner metrics aggregation (overview(from?,to?)) + admin cross-merchant aggregate (adminOverview(from?,to?) incl. merchant/user counts) (FR-044/051)
 scripts/                            # deploy.sh (SSH/pm2), db helpers
 tests/                              # e2e (Playwright) + MSW handlers + fixtures
 .github/workflows/                  # ci.yml (push/PR), deploy.yml (optional manual)

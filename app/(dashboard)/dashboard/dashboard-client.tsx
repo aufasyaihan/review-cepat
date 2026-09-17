@@ -4,8 +4,15 @@ import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { Activity, BarChart3, Filter, Smartphone, Tag } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/ui/chart';
 import {
   Select,
   SelectContent,
@@ -63,15 +70,6 @@ export function DashboardClient({ userName, isOwner }: { userName: string; isOwn
         <StatCard label="My devices" value={devices.length} icon={Activity} />
       </div>
 
-      <nav className="flex flex-wrap gap-3">
-        <Button render={<Link href="/devices" />} nativeButton={false}>
-          Manage devices
-        </Button>
-        <Button render={<Link href="/devices/claim" />} nativeButton={false} variant="outline">
-          Claim a device
-        </Button>
-      </nav>
-
       {isOwner && analytics && (
         <OwnerAnalytics
           published={published}
@@ -83,6 +81,14 @@ export function DashboardClient({ userName, isOwner }: { userName: string; isOwn
     </div>
   );
 }
+
+const dailyChartConfig = {
+  scans: { label: 'Scans', color: 'var(--chart-1)' },
+} satisfies ChartConfig;
+
+const deviceChartConfig = {
+  scans: { label: 'Scans', color: 'var(--chart-2)' },
+} satisfies ChartConfig;
 
 function OwnerAnalytics({
   published,
@@ -104,6 +110,9 @@ function OwnerAnalytics({
     enabled: !!activeDevice,
     retry: false,
   });
+
+  const dailyChartData = dailyScans.map((d) => ({ date: d.day, scans: d.scans }));
+  const deviceChartData = deviceScans.map((d) => ({ name: d.name, scans: d.scans }));
 
   return (
     <section className="space-y-8">
@@ -129,14 +138,15 @@ function OwnerAnalytics({
                 hint="Publish a device and scan it once to see data here."
               />
             ) : (
-              <ul className="divide-y divide-border">
-                {dailyScans.map((d) => (
-                  <li key={d.day} className="flex items-center justify-between py-2.5 text-sm">
-                    <span className="text-muted-foreground">{d.day}</span>
-                    <span className="font-medium">{d.scans}</span>
-                  </li>
-                ))}
-              </ul>
+              <ChartContainer config={dailyChartConfig} className="h-[250px] w-full">
+                <BarChart data={dailyChartData}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="date" tickLine={false} tickMargin={10} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="scans" fill="var(--color-scans)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ChartContainer>
             )}
           </CardContent>
         </Card>
@@ -153,16 +163,21 @@ function OwnerAnalytics({
                 hint="Claim and publish a device to start collecting scans."
               />
             ) : (
-              <ul className="divide-y divide-border">
-                {deviceScans.map((d) => (
-                  <li key={d.deviceId} className="flex items-center justify-between py-2.5 text-sm">
-                    <Link href={`/devices/${d.deviceId}`} className="hover:underline">
-                      {d.name} <code className="text-xs text-muted-foreground">/s/{d.slug}</code>
-                    </Link>
-                    <span className="font-medium">{d.scans}</span>
-                  </li>
-                ))}
-              </ul>
+              <ChartContainer config={deviceChartConfig} className="h-[250px] w-full">
+                <BarChart data={deviceChartData} layout="vertical">
+                  <CartesianGrid horizontal={false} />
+                  <XAxis type="number" tickLine={false} axisLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    width={120}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="scans" fill="var(--color-scans)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ChartContainer>
             )}
           </CardContent>
         </Card>
@@ -175,7 +190,11 @@ function OwnerAnalytics({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={activeDevice} onValueChange={(value) => setSelectedDevice(value ?? '')}>
+            <Select
+              items={deviceScans.map((d) => ({ value: d.deviceId, label: d.name }))}
+              value={activeDevice}
+              onValueChange={(value) => setSelectedDevice(value ?? '')}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

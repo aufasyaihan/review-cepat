@@ -7,7 +7,7 @@
  *   const res = await api.post('/api/device/claim').setBody({ claimCode }).send();
  *   const q = await api.get('/api/destination/places').setQuery({ query }).send();
  */
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export class ApiRequestBuilder<T> {
   private headers: Record<string, string> = {};
@@ -72,6 +72,10 @@ export class HttpApi {
 
   put<T>(path: string): ApiRequestBuilder<T> {
     return new ApiRequestBuilder<T>('PUT', path);
+  }
+
+  patch<T>(path: string): ApiRequestBuilder<T> {
+    return new ApiRequestBuilder<T>('PATCH', path);
   }
 
   delete<T>(path: string): ApiRequestBuilder<T> {

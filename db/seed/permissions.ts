@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { masterRole, permission, rolePermission } from '@/db/schema';
@@ -130,8 +130,32 @@ export const PERMISSION_ROWS: Array<{
     parentPath: '/devices',
   },
   {
-    path: '/api/member/invite',
-    label: 'api.invite_member',
+    path: '/api/device/update',
+    label: 'api.update_device',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/devices',
+  },
+  {
+    path: '/api/member/remove',
+    label: 'api.remove_member',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/user-management',
+  },
+  {
+    path: '/api/members',
+    label: 'api.list_users',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/user-management',
+  },
+  {
+    path: '/api/members/:memberId',
+    label: 'api.manage_user',
     icon: '',
     isMenu: false,
     sort: 0,
@@ -152,6 +176,22 @@ export const PERMISSION_ROWS: Array<{
     isMenu: false,
     sort: 0,
     parentPath: '/user-management',
+  },
+  {
+    path: '/api/organizations',
+    label: 'api.list_merchants',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/merchants',
+  },
+  {
+    path: '/api/organizations/:id',
+    label: 'api.manage_merchant',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/merchants',
   },
   {
     path: '/api/permissions',
@@ -212,9 +252,14 @@ const LINK_ROWS: Array<{
   { path: '/api/device/reset', admin: true, merchantScope: 'owner' },
   { path: '/api/device/disable', admin: true, merchantScope: null },
   { path: '/api/device/delete', admin: true, merchantScope: null },
-  { path: '/api/member/invite', admin: true, merchantScope: 'owner' },
+  { path: '/api/device/update', admin: true, merchantScope: null },
+  { path: '/api/member/remove', admin: true, merchantScope: 'owner' },
+  { path: '/api/members', admin: true, merchantScope: null },
+  { path: '/api/members/:memberId', admin: true, merchantScope: null },
   { path: '/api/member/assign', admin: true, merchantScope: 'owner' },
   { path: '/api/member/unassign', admin: true, merchantScope: 'owner' },
+  { path: '/api/organizations', admin: true, merchantScope: null },
+  { path: '/api/organizations/:id', admin: true, merchantScope: null },
   { path: '/api/permissions', admin: true, merchantScope: null },
   { path: '/api/roles/:roleId/permissions', admin: true, merchantScope: null },
   { path: '/api/analytics/admin-overview', admin: true, merchantScope: null },

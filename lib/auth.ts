@@ -1,7 +1,9 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { betterAuth } from 'better-auth';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { nextCookies } from 'better-auth/next-js';
 import { organization } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import {
@@ -56,6 +58,24 @@ export const auth = betterAuth({
   },
   advanced: {
     cookiePrefix: 'auth',
+  },
+  hooks: {
+    // FR-052: a deactivated account must not be able to sign in again.
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== '/sign-in/email') return;
+      const email = (ctx.body as { email?: string } | undefined)?.email;
+      if (!email) return;
+      const row = await getDb().query.user.findFirst({
+        where: eq(user.email, email.trim().toLowerCase()),
+        columns: { status: true },
+      });
+      if (row?.status === 'DEACTIVATED') {
+        throw APIError.from('FORBIDDEN', {
+          code: 'ACCOUNT_DEACTIVATED',
+          message: 'This account has been deactivated. Contact an administrator.',
+        });
+      }
+    }),
   },
   // Must be the last plugin: sets session cookies when auth APIs are called
   // from Server Actions (signIn/signUp/signOut).

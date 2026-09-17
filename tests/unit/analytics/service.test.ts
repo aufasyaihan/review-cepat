@@ -52,11 +52,15 @@ function mockSelectReturn(values: unknown[]) {
   const db = getDb() as unknown as { select: ReturnType<typeof vi.fn> };
   let call = 0;
   db.select.mockImplementation(() => ({
-    from: () => ({
-      where: (whereArg: unknown) => {
+    from: () => {
+      const value = values[call++] ?? [];
+      const result = Promise.resolve(value) as Promise<unknown> & {
+        where?: (whereArg: unknown) => Promise<unknown> & {
+          groupBy?: () => Promise<unknown> & { orderBy?: () => Promise<unknown> };
+        };
+      };
+      result.where = (whereArg: unknown) => {
         whereArgs.push(whereArg);
-        const value = values[call++] ?? [];
-        const plain = Promise.resolve(value);
         const chained = Promise.resolve(value) as Promise<unknown> & {
           groupBy?: () => Promise<unknown> & { orderBy?: () => Promise<unknown> };
         };
@@ -67,10 +71,10 @@ function mockSelectReturn(values: unknown[]) {
           grouped.orderBy = () => Promise.resolve(value);
           return grouped;
         };
-        void plain;
         return chained;
-      },
-    }),
+      };
+      return result;
+    },
   }));
 }
 
@@ -91,7 +95,13 @@ beforeEach(() => {
 describe('analytics domain (owner-only, SC-008)', () => {
   it('owner with no devices → zeroed overview', async () => {
     const result = await overview('user-1');
-    expect(result).toEqual({ totalScans: 0, deviceScans: [], dailyScans: [] });
+    expect(result).toEqual({
+      totalScans: 0,
+      deviceScans: [],
+      dailyScans: [],
+      merchantCount: 0,
+      userCount: 0,
+    });
   });
 
   it('returns per-device and daily aggregates for owned devices', async () => {
@@ -192,7 +202,10 @@ describe('adminOverview (FR-044)', () => {
       { id: 'd2', slug: 'b', name: 'Beta', organizationId: 'org-2' },
       { id: 'd3', slug: 'c', name: 'Gamma', organizationId: 'org-3' },
     ]);
+    // merchant count, user count, totalRows, daily, perDevice — in query order
     mockSelectReturn([
+      [{ cnt: 4 }],
+      [{ cnt: 12 }],
       [{ cnt: 9 }],
       [{ day: '2025-07-01', cnt: 9 }],
       [
@@ -206,13 +219,27 @@ describe('adminOverview (FR-044)', () => {
     expect(result.totalScans).toBe(9);
     expect(result.deviceScans).toHaveLength(3);
     expect(result.deviceScans.map((d) => d.slug)).toEqual(['a', 'b', 'c']);
+    expect(result.merchantCount).toBe(4);
+    expect(result.userCount).toBe(12);
+  });
+
+  it('returns non-negative merchant and user counts', async () => {
+    dbQuery.device.findMany.mockResolvedValue([]);
+    // no organizations, no users, no scans (aggregate early-returns on empty ids)
+    mockSelectReturn([[{ cnt: 0 }], [{ cnt: 0 }]]);
+    const result = await adminOverview({ id: 'admin-1', role: 'ADMIN' });
+    expect(typeof result.merchantCount).toBe('number');
+    expect(typeof result.userCount).toBe('number');
+    expect(result.merchantCount).toBeGreaterThanOrEqual(0);
+    expect(result.userCount).toBeGreaterThanOrEqual(0);
   });
 
   it('zero-fills for an empty window with no scans', async () => {
     dbQuery.device.findMany.mockResolvedValue([
       { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1' },
     ]);
-    mockSelectReturn([[], [], []]);
+    // merchantCart, userCount, then zeroed scans
+    mockSelectReturn([[{ cnt: 2 }], [{ cnt: 5 }], [], [], []]);
     const result = await adminOverview(
       { id: 'admin-1', role: 'ADMIN' },
       { from: new Date('2026-01-01'), to: new Date('2026-01-31') },
@@ -221,6 +248,8 @@ describe('adminOverview (FR-044)', () => {
       totalScans: 0,
       deviceScans: [{ deviceId: 'd1', slug: 'a', name: 'Alpha', scans: 0 }],
       dailyScans: [],
+      merchantCount: 2,
+      userCount: 5,
     });
   });
 });

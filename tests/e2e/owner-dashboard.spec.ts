@@ -46,7 +46,9 @@ test.describe('admin user management', () => {
     await expect(page.getByText('E2E Shop').first()).toBeVisible();
   });
 
-  test('admin can filter members by organization', async ({ page }) => {
+  test('admin can filter members by merchant via the table column filter (FR-046)', async ({
+    page,
+  }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill('admin@e2e.local');
     await page.getByLabel('Password').fill('E2e-admin-123');
@@ -54,8 +56,7 @@ test.describe('admin user management', () => {
     await page.waitForURL('**/dashboard');
     await page.goto('/user-management');
 
-    await page.getByLabel('Filter by organization').click();
-    await page.getByRole('option', { name: 'E2E Shop' }).click();
+    await page.getByLabel('Filter by merchant…').fill('E2E Shop');
     await expect(page.getByText('E2E Sub', { exact: true })).toBeVisible();
   });
 
@@ -69,15 +70,15 @@ test.describe('admin user management', () => {
 
     // Scope to E2E Shop first so the "E2E Sub" row is unambiguous even if the
     // shared e2e DB has rows seeded by other specs.
-    await page.getByLabel('Filter by organization').click();
-    await page.getByRole('option', { name: 'E2E Shop' }).click();
+    await page.getByLabel('Filter by merchant…').fill('E2E Shop');
 
     // hasText would also match the unrelated "E2E Subscriber" rows seeded by
     // other specs (register-claim.spec.ts), so match on the exact cell text.
     const subRow = page
       .getByRole('row')
       .filter({ has: page.getByText('E2E Sub', { exact: true }) });
-    await subRow.getByRole('button', { name: 'Assign devices' }).click();
+    await subRow.getByRole('button', { name: 'Open actions' }).click();
+    await page.getByRole('menuitem', { name: 'Edit' }).click();
 
     await expect(page).toHaveURL(/\/user-management\/[^/]+$/);
     // This page load — and every refetch after a mutation below — is exactly

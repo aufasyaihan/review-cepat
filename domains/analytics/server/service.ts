@@ -1,7 +1,7 @@
 import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { getDb } from '@/db';
-import { device, scanEvent } from '@/db/schema';
+import { device, organization, scanEvent, user as userTable } from '@/db/schema';
 import { getActiveOrganization } from '@/domains/merchant/server/permissions';
 import { AppError } from '@/lib/errors';
 import type { SessionUser } from '@/lib/session';
@@ -10,6 +10,8 @@ export type AnalyticsOverview = {
   totalScans: number;
   deviceScans: Array<{ deviceId: string; slug: string; name: string; scans: number }>;
   dailyScans: Array<{ day: string; scans: number }>;
+  merchantCount: number;
+  userCount: number;
 };
 
 export type AnalyticsBreakdown = Array<{ value: string; scans: number }>;
@@ -46,9 +48,16 @@ async function aggregate(
   ids: string[],
   allDevices: Array<{ id: string; slug: string; name: string }>,
   window: OverviewWindow,
+  counts?: { merchantCount: number; userCount: number },
 ): Promise<AnalyticsOverview> {
   if (ids.length === 0) {
-    return { totalScans: 0, deviceScans: [], dailyScans: [] };
+    return {
+      totalScans: 0,
+      deviceScans: [],
+      dailyScans: [],
+      merchantCount: counts?.merchantCount ?? 0,
+      userCount: counts?.userCount ?? 0,
+    };
   }
 
   const where = windowWhere(ids, window);
@@ -79,6 +88,8 @@ async function aggregate(
       scans: countMap.get(d.id) ?? 0,
     })),
     dailyScans: daily.map((r) => ({ day: r.day, scans: Number(r.cnt) })),
+    merchantCount: counts?.merchantCount ?? 0,
+    userCount: counts?.userCount ?? 0,
   };
 }
 
@@ -114,11 +125,16 @@ export async function adminOverview(
   const allDevices = (await db.query.device.findMany({
     columns: { id: true, slug: true, name: true },
   })) as Array<{ id: string; slug: string; name: string }>;
+
+  const [{ cnt: merchantCount }] = await db.select({ cnt: count() }).from(organization);
+  const [{ cnt: userCount }] = await db.select({ cnt: count() }).from(userTable);
+
   return aggregate(
     db,
     allDevices.map((d) => d.id),
     allDevices,
     window,
+    { merchantCount: Number(merchantCount), userCount: Number(userCount) },
   );
 }
 

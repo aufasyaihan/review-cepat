@@ -3,7 +3,16 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -78,6 +87,7 @@ export function SettingsClient({
             </p>
           </div>
           <Select
+            items={members.map((m) => ({ value: m.id, label: `${m.name} — ${m.email}` }))}
             value={null}
             onValueChange={(value: string | null) => {
               if (!value) return;
@@ -133,7 +143,7 @@ export function SettingsClient({
           <div>
             <h2 className="text-base font-semibold">Unpublish</h2>
             <p className="text-sm text-muted-foreground">
-              Remove this device from the public directory. It stays in your organization.
+              Remove this device from the public directory. It stays in your merchant.
             </p>
           </div>
           <Dialog>
@@ -148,7 +158,7 @@ export function SettingsClient({
               <DialogHeader>
                 <DialogTitle>Unpublish {device.name}?</DialogTitle>
                 <DialogDescription>
-                  Remove this device from the public directory. It stays in your organization.
+                  Remove this device from the public directory. It stays in your merchant.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
@@ -176,22 +186,26 @@ export function SettingsClient({
             <CardTitle className="text-base">Reset device</CardTitle>
             <CardDescription>
               Clears destinations and the sub-merchant assignment, keeps this device in your
-              organization, and issues a fresh claim code. The device must be set up again (FR-028).
+              merchant, and issues a fresh claim code. The device must be set up again (FR-028).
             </CardDescription>
           </CardHeader>
           <CardFooter className="flex justify-end">
-            <Dialog>
-              <DialogTrigger render={<Button variant="destructive" />}>Reset device</DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Reset this device?</DialogTitle>
-                  <DialogDescription>
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button variant="destructive" />}>
+                Reset device
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset this device?</AlertDialogTitle>
+                  <AlertDialogDescription>
                     This clears all destinations and the member assignment, and issues a new claim
                     code. The device must be set up again.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel render={<Button variant="outline" />}>
+                    Cancel
+                  </AlertDialogCancel>
                   <Button
                     variant="destructive"
                     disabled={reset.isPending}
@@ -199,9 +213,9 @@ export function SettingsClient({
                   >
                     {reset.isPending ? 'Resetting…' : 'Reset device'}
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardFooter>
         </Card>
       )}
