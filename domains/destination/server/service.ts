@@ -77,7 +77,7 @@ export async function setForDevice(
 }
 
 /**
- * Accountless variant used by /{slug}/setup/redirect (FR-004): no owner/account
+ * Accountless variant used by /s/{slug}/setup/redirect (FR-004): no owner/account
  * is required, but the device must exist and not be disabled, and a valid setup
  * token must have been verified by the caller action.
  */

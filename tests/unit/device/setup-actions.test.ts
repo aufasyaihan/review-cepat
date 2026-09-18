@@ -29,7 +29,7 @@ describe('setupClaimCodeAction (US1 step 1)', () => {
     } as never);
     const result = await setupClaimCodeAction('slug-one', { claimCode: 'ABCD1234' });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.redirectUrl).toBe('/slug-one/setup/redirect?t=tok-123');
+    if (result.ok) expect(result.data.redirectUrl).toBe('/s/slug-one/setup/redirect?t=tok-123');
   });
 
   it('maps claim failures to a friendly error', async () => {

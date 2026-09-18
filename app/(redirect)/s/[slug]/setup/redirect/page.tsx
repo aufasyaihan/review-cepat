@@ -19,7 +19,7 @@ export default async function SetupRedirectPage({
 
   const token = typeof t === 'string' ? t : '';
   if (!token || !verifySetupToken(token, device.id)) {
-    redirect(`/${slug}/setup`);
+    redirect(`/s/${slug}/setup`);
   }
 
   return <SetupRedirectClient deviceId={device.id} token={token} deviceName={device.name} />;

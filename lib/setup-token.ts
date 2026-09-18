@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
  * Short-lived token proving a user passed claim-code validation for a device,
- * carried from `/{slug}/setup` to `/{slug}/setup/redirect` so the destination
+ * carried from `/s/{slug}/setup` to `/s/{slug}/setup/redirect` so the destination
  * editor cannot be used without first proving knowledge of the claim code.
  *
  * Format: base64url("{deviceId}.{issuedAtMs}")."{hex hmac of that payload}"

@@ -8,7 +8,7 @@ import { claimAccountless } from './service';
 /**
  * Public (no auth) step 1 of accountless setup (FR-004).
  * Validates the claim code for a slug, marks the device CLAIMED, and returns a
- * short-lived setup token so step 2 (/{slug}/setup/redirect) can save
+ * short-lived setup token so step 2 (/s/{slug}/setup/redirect) can save
  * destinations without an account.
  */
 export async function setupClaimCodeAction(
@@ -22,7 +22,7 @@ export async function setupClaimCodeAction(
     }
     const device = await claimAccountless(slug, parsed.data.claimCode);
     const token = issueSetupToken(device.id);
-    return ok({ redirectUrl: `/${device.slug}/setup/redirect?t=${token}` });
+    return ok({ redirectUrl: `/s/${device.slug}/setup/redirect?t=${token}` });
   } catch (err) {
     return fail(err instanceof Error ? err.message : 'Setup failed');
   }

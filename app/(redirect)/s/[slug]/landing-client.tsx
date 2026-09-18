@@ -9,7 +9,7 @@ export function LandingClient({ slug }: { slug: string }) {
 
   if (data.outcome === 'INACTIVE') {
     return (
-      <div className="mx-auto max-w-md py-16 text-center" data-testid="landing-inactive">
+      <div className="w-full max-w-md text-center" data-testid="landing-inactive">
         <h1 className="text-xl font-semibold">This device is inactive</h1>
         <p className="mt-2 text-muted-foreground">
           The owner has paused this landing page. Please try again later.
@@ -19,7 +19,7 @@ export function LandingClient({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-md py-10 text-center" data-testid="landing-page">
+    <div className="w-full max-w-md text-center" data-testid="landing-page">
       <header>
         <h1 className="text-2xl font-semibold">{data.name}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
