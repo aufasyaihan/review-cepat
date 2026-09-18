@@ -7,7 +7,11 @@ import { account, device, member, merchantProfile, organization, session, user }
 import { claimDeviceSchema } from '@/domains/device/schemas';
 import type { DeviceSummary } from '@/domains/device/types';
 import { type ProfileOutput, profileSchema } from '@/domains/merchant/schemas/profile';
-import type { Membership } from '@/domains/merchant/server/permissions';
+import {
+  getActiveOrganization,
+  isOwner,
+  type Membership,
+} from '@/domains/merchant/server/permissions';
 import { auth } from '@/lib/auth';
 import { hashClaimCode, randomSlug } from '@/lib/codes';
 import { AppError } from '@/lib/errors';
@@ -416,6 +420,44 @@ export async function claimWithCode(
     memberId: membership.id,
     boundUserId: userId,
   });
+}
+
+/**
+ * Runs immediately after a claim code validates (device status CLAIMED,
+ * no account bound yet). Decides where the caller goes next: bind
+ * directly into an org if one is already attached to the device or the
+ * caller is a non-owner member, or send an owner to the resell/claim
+ * decision when the device has no org yet.
+ */
+export async function resolvePostClaim(
+  deviceId: string,
+  userId: string,
+): Promise<{ redirectUrl: string }> {
+  const db = getDb();
+  const row = await db.query.device.findFirst({ where: eq(device.id, deviceId) });
+  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
+
+  const membership = await getActiveOrganization(userId);
+  if (!membership) {
+    throw new AppError(409, 'NO_ORGANIZATION', 'You are not part of an organization yet');
+  }
+
+  if (row.organizationId || !isOwner(membership)) {
+    const organizationId = row.organizationId ?? membership.organizationId;
+    await db
+      .update(device)
+      .set({
+        organizationId,
+        memberId: membership.id,
+        boundUserId: userId,
+        status: 'CLAIMED',
+        updatedAt: new Date(),
+      })
+      .where(eq(device.id, deviceId));
+    return { redirectUrl: '/dashboard' };
+  }
+
+  return { redirectUrl: `/s/${row.slug}/option` };
 }
 
 // ---------------------------------------------------------------------------
