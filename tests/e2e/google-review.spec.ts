@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
 test.describe('google review destination', () => {
   test('renders the place search flow during device setup', async ({ page }) => {
     await page.goto('/s/e2e-unclaimed/setup');
-    await page.getByLabel('Claim code').fill('E2ECLAIM1');
+    await page.getByLabel('Claim code').fill('E2EUNCL1');
     await page.getByRole('button', { name: 'Continue' }).click();
 
     await expect(page.getByRole('heading', { name: 'Configure Claim Me Counter' })).toBeVisible();

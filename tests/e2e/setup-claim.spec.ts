@@ -9,7 +9,7 @@ test.describe('accountless device setup', () => {
     await page.goto('/s/e2e-unclaimed/setup');
     await expect(page.getByRole('heading', { name: 'Set up your device' })).toBeVisible();
 
-    await page.getByLabel('Claim code').fill('E2ECLAIM1');
+    await page.getByLabel('Claim code').fill('E2EUNCL1');
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // Reached the destination-type chooser (a valid setup token is required).

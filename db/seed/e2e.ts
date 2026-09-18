@@ -210,10 +210,10 @@ async function main() {
     status: 'UNCLAIMED',
     ownerId: null,
     organizationId: ORG_ID,
-    claimCode: 'E2ECLAIM1',
+    claimCode: 'E2EUNCL1',
   });
 
-  // Dedicated device for the register-with-code e2e (kept apart from E2ECLAIM1
+  // Dedicated device for the register-with-code e2e (kept apart from E2EUNCL1
   // so the claim-flow spec and the register-flow spec never contend). Washed
   // every run so the register spec always binds a fresh account.
   const existingRegister = await db.query.device.findFirst({
@@ -247,7 +247,7 @@ async function main() {
   });
 
   // Dedicated device for the merchant claim→configure→publish spec, so it
-  // never contends with the accountless setup spec on E2ECLAIM1. Washed every
+  // never contends with the accountless setup spec on E2EUNCL1. Washed every
   // run so the merchant flow always starts from an unclaimed device.
   const existingMerchantClaim = await db.query.device.findFirst({
     where: eq(device.slug, 'e2e-merchant-claim'),
@@ -324,7 +324,7 @@ async function main() {
   console.log(`  - admin: admin@e2e.local / E2e-admin-123`);
   console.log(`  - merchant (owner): merchant@e2e.local / E2e-merchant-123`);
   console.log(`  - sub-merchant: sub@e2e.local / E2e-sub-123`);
-  console.log(`  - claim code for /s/e2e-unclaimed: E2ECLAIM1`);
+  console.log(`  - claim code for /s/e2e-unclaimed: E2EUNCL1`);
   void admin;
   console.log('E2E fixtures ready.');
 }
