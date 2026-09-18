@@ -24,6 +24,10 @@ export async function claimForSelfAction(
   try {
     const membership = await requireOwnerMembership();
     const db = getDb();
+    const existing = await db.query.device.findFirst({ where: eq(device.id, deviceId) });
+    if (!existing || existing.status !== 'UNCLAIMED') {
+      return fail('This device is not available to claim');
+    }
     await db
       .update(device)
       .set({

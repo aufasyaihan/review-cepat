@@ -34,6 +34,7 @@ describe('claimForSelfAction', () => {
     });
     const result = await claimForSelfAction('dev-1');
     expect(result.ok).toBe(false);
+    expect(dbMock.update).not.toHaveBeenCalled();
   });
 
   it('binds the device to the owner org', async () => {
@@ -43,10 +44,43 @@ describe('claimForSelfAction', () => {
       organizationId: 'org-1',
       role: 'owner',
     });
+    dbMock.query.device.findFirst.mockResolvedValue({
+      id: 'dev-1',
+      status: 'UNCLAIMED',
+    });
     const result = await claimForSelfAction('dev-1');
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.redirectUrl).toBe('/dashboard');
     expect(dbMock.update).toHaveBeenCalled();
+  });
+
+  it('fails when the device is already claimed', async () => {
+    vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(getActiveOrganization).mockResolvedValue({
+      id: 'mem-1',
+      organizationId: 'org-1',
+      role: 'owner',
+    });
+    dbMock.query.device.findFirst.mockResolvedValue({
+      id: 'dev-1',
+      status: 'CLAIMED',
+    });
+    const result = await claimForSelfAction('dev-1');
+    expect(result.ok).toBe(false);
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
+  it('fails when the device is missing', async () => {
+    vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(getActiveOrganization).mockResolvedValue({
+      id: 'mem-1',
+      organizationId: 'org-1',
+      role: 'owner',
+    });
+    dbMock.query.device.findFirst.mockResolvedValue(undefined);
+    const result = await claimForSelfAction('dev-1');
+    expect(result.ok).toBe(false);
+    expect(dbMock.update).not.toHaveBeenCalled();
   });
 });
 
