@@ -23,6 +23,7 @@ import {
   adminReset,
   adminSetDisabled,
   deleteDevice,
+  ownerForgetDevice,
   ownerReset,
   publishVisible,
   renameVisibleDevice,
@@ -192,6 +193,25 @@ export async function resetDeviceAction(
     const result = await ownerReset(id, membership.organizationId);
     revalidatePath('/devices');
     revalidatePath(`/devices/${id}`);
+    return ok(result);
+  } catch (err) {
+    return fail(toMessage(err));
+  }
+}
+
+/** Owner detaches a device from their org entirely: wipes config, releases it back to UNCLAIMED. */
+export async function forgetDeviceAction(
+  id: string,
+): Promise<ActionResult<{ device: DeviceSummary; claimCode: string }>> {
+  try {
+    await requireApiPermission('/api/device/forget');
+    const user = await requireApiUser(['MERCHANT']);
+    const membership = await getActiveOrganization(user.id);
+    if (!membership || !isOwner(membership)) {
+      return fail('Only an organization owner can forget this device');
+    }
+    const result = await ownerForgetDevice(id, membership.organizationId);
+    revalidatePath('/devices');
     return ok(result);
   } catch (err) {
     return fail(toMessage(err));

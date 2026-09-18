@@ -37,13 +37,6 @@ export const PERMISSION_ROWS: Array<{
     sort: 200,
   },
   {
-    path: '/devices/claim',
-    label: 'Claim a device',
-    icon: 'Tag',
-    isMenu: true,
-    sort: 300,
-  },
-  {
     path: '/user-management',
     label: 'User management',
     icon: 'Users',
@@ -74,14 +67,6 @@ export const PERMISSION_ROWS: Array<{
     parentPath: '/devices',
   },
   {
-    path: '/api/device/claim',
-    label: 'api.claim_device',
-    icon: '',
-    isMenu: false,
-    sort: 0,
-    parentPath: '/devices/claim',
-  },
-  {
     path: '/api/device/publish',
     label: 'api.publish_device',
     icon: '',
@@ -108,6 +93,14 @@ export const PERMISSION_ROWS: Array<{
   {
     path: '/api/device/reset',
     label: 'api.reset_device',
+    icon: '',
+    isMenu: false,
+    sort: 0,
+    parentPath: '/devices',
+  },
+  {
+    path: '/api/device/forget',
+    label: 'api.forget_device',
     icon: '',
     isMenu: false,
     sort: 0,
@@ -233,23 +226,23 @@ export const MASTER_ROLE_ROWS = ['ADMIN', 'MERCHANT'] as const;
  * Per-permission role links. `ALL` grants every role; a single value applies
  * to that role. Value forms: `null` (no scope), 'owner', 'member', 'both'.
  */
-const LINK_ROWS: Array<{
+export const LINK_ROWS: Array<{
   path: string;
   admin: boolean;
+  merchant?: boolean; // default true; set false to admin-gate a route
   merchantScope?: 'owner' | 'member' | 'both' | null;
 }> = [
   { path: '/dashboard', admin: true, merchantScope: null },
   { path: '/devices', admin: true, merchantScope: null },
-  { path: '/devices/claim', admin: false, merchantScope: null },
   { path: '/user-management', admin: true, merchantScope: 'owner' },
-  { path: '/merchants', admin: true, merchantScope: null },
+  { path: '/merchants', admin: true, merchant: false },
   { path: '/settings', admin: true, merchantScope: null },
   { path: '/api/device/create', admin: true, merchantScope: null },
-  { path: '/api/device/claim', admin: false, merchantScope: null },
   { path: '/api/device/publish', admin: false, merchantScope: null },
   { path: '/api/device/unpublish', admin: false, merchantScope: null },
   { path: '/api/device/transfer', admin: false, merchantScope: null },
   { path: '/api/device/reset', admin: true, merchantScope: 'owner' },
+  { path: '/api/device/forget', admin: true, merchantScope: 'owner' },
   { path: '/api/device/disable', admin: true, merchantScope: null },
   { path: '/api/device/delete', admin: true, merchantScope: null },
   { path: '/api/device/update', admin: true, merchantScope: null },
@@ -313,7 +306,9 @@ export async function ensurePermissions(db: Db): Promise<void> {
     if (link.admin) {
       await ensureLink(db, roleIds, 'ADMIN', permissionId, null, now);
     }
-    await ensureLink(db, roleIds, 'MERCHANT', permissionId, link.merchantScope ?? null, now);
+    if (link.merchant !== false) {
+      await ensureLink(db, roleIds, 'MERCHANT', permissionId, link.merchantScope ?? null, now);
+    }
   }
 }
 

@@ -3,7 +3,6 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Copy } from 'lucide-react';
-import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -32,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { deviceKeys, deviceQueries } from '@/domains/device/api/queries';
 import {
+  forgetDeviceAction,
   publishDeviceAction,
   resetDeviceAction,
   unpublishDeviceAction,
@@ -47,6 +47,7 @@ export function DevicesClient({ isOwner }: { isOwner: boolean }) {
     action: 'publish' | 'unpublish';
   } | null>(null);
   const [pendingReset, setPendingReset] = useState<DeviceSummary | null>(null);
+  const [pendingForget, setPendingForget] = useState<DeviceSummary | null>(null);
   const [pendingEdit, setPendingEdit] = useState<DeviceSummary | null>(null);
   const publish = useAction(publishDeviceAction, {
     successMsg: 'Device published',
@@ -63,16 +64,17 @@ export function DevicesClient({ isOwner }: { isOwner: boolean }) {
     keys: [deviceKeys.lists()],
     onSuccess: () => setPendingReset(null),
   });
+  const forget = useAction((id: string) => forgetDeviceAction(id), {
+    successMsg: 'Device forgotten — it is now unclaimed',
+    keys: [deviceKeys.lists()],
+    onSuccess: () => setPendingForget(null),
+  });
 
   const columns: ColumnDef<DeviceSummary>[] = [
     {
       accessorKey: 'name',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Device" />,
-      cell: ({ row }) => (
-        <Link href={`/devices/${row.original.id}`} className="font-medium hover:underline">
-          {row.original.name}
-        </Link>
-      ),
+      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
     },
     {
       accessorKey: 'slug',
@@ -126,7 +128,16 @@ export function DevicesClient({ isOwner }: { isOwner: boolean }) {
         : device.status !== 'DISABLED'
           ? [{ label: 'Publish', onClick: () => setPendingPub({ device, action: 'publish' }) }]
           : []),
-      ...(isOwner ? [{ label: 'Reset', onClick: () => setPendingReset(device) }] : []),
+      ...(isOwner
+        ? [
+            { label: 'Reset', onClick: () => setPendingReset(device) },
+            {
+              label: 'Forgot device',
+              variant: 'destructive' as const,
+              onClick: () => setPendingForget(device),
+            },
+          ]
+        : []),
     ]),
   ];
 
@@ -135,14 +146,8 @@ export function DevicesClient({ isOwner }: { isOwner: boolean }) {
       <div className="mx-auto max-w-md py-16 text-center">
         <h1 className="text-xl font-semibold">No devices yet</h1>
         <p className="mt-2 text-muted-foreground">
-          Claim a device with its one-time claim code to get started.
+          Scan or open your device's link to activate it — it will show up here once claimed.
         </p>
-        <Link
-          href="/devices/claim"
-          className="mt-6 inline-block rounded bg-primary px-4 py-2 text-primary-foreground"
-        >
-          Claim a device
-        </Link>
       </div>
     );
   }
@@ -154,11 +159,6 @@ export function DevicesClient({ isOwner }: { isOwner: boolean }) {
         data={devices}
         showRowSelected={false}
         headerContent={<h1 className="text-xl font-semibold">My devices</h1>}
-        actions={
-          <Button render={<Link href="/devices/claim" />} nativeButton={false} variant="outline">
-            Claim a device
-          </Button>
-        }
       />
       <Dialog open={pendingPub !== null} onOpenChange={(open) => !open && setPendingPub(null)}>
         <DialogContent>
@@ -216,6 +216,30 @@ export function DevicesClient({ isOwner }: { isOwner: boolean }) {
               onClick={() => pendingReset && reset.mutate(pendingReset.id)}
             >
               {reset.isPending ? 'Resetting…' : 'Reset'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={pendingForget !== null}
+        onOpenChange={(open) => setPendingForget(open ? pendingForget : null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Forget {pendingForget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Detaches this device from your merchant, clears its links, and issues a new claim code
+              for its next owner. This cannot be undone from here.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel render={<Button variant="outline" />}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={forget.isPending}
+              onClick={() => pendingForget && forget.mutate(pendingForget.id)}
+            >
+              {forget.isPending ? 'Forgetting…' : 'Forget device'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

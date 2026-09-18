@@ -11,7 +11,12 @@ vi.mock('drizzle-orm', async (importOriginal) => ({
 }));
 
 import { getDb } from '@/db';
-import { ensurePermissions, MASTER_ROLE_ROWS, PERMISSION_ROWS } from '@/db/seed/permissions';
+import {
+  ensurePermissions,
+  LINK_ROWS,
+  MASTER_ROLE_ROWS,
+  PERMISSION_ROWS,
+} from '@/db/seed/permissions';
 
 const getDbMock = vi.mocked(getDb);
 
@@ -99,7 +104,7 @@ describe('ensurePermissions', () => {
     const navRows = perms.filter((r) => r.isMenu === true);
     const apiRows = perms.filter((r) => r.isMenu === false);
 
-    expect(navRows.length).toBeGreaterThanOrEqual(6);
+    expect(navRows.length).toBeGreaterThanOrEqual(5);
     expect(apiRows.length).toBeGreaterThanOrEqual(13);
     expect(apiRows.every((r) => r.icon === null)).toBe(true);
     expect(perms.every((r) => !('roles' in r))).toBe(true);
@@ -113,15 +118,19 @@ describe('ensurePermissions', () => {
     expect(devicesNav?.id).toBe(parentId);
   });
 
-  it('links ADMIN (null scope) for admin-accessible rows and MERCHANT for every row', async () => {
+  it('links ADMIN (null scope) for admin-accessible rows and MERCHANT for every row unless merchant: false', async () => {
     const { db, links } = makeDb();
     getDbMock.mockReturnValue(db as never);
 
     await ensurePermissions(db as never);
 
-    // Every permission gets a MERCHANT link; ADMIN links exist only where the
-    // seed intentionally grants admin nav/access (never /devices/claim etc.).
-    expect(links).toHaveLength(PERMISSION_ROWS.length + 21);
+    // Every LINK_ROWS entry yields an ADMIN link where admin: true, and a
+    // MERCHANT link unless the row opts out with merchant: false (/merchants).
+    // Every LINK_ROWS path has a matching PERMISSION_ROWS row.
+    const expected =
+      LINK_ROWS.filter((l) => l.admin).length +
+      LINK_ROWS.filter((l) => l.merchant !== false).length;
+    expect(links).toHaveLength(expected);
     expect(links.some((l) => l.scope === 'owner')).toBe(true);
   });
 
