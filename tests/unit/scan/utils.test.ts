@@ -10,6 +10,7 @@ function device(
     slug: 'demo-tag',
     name: 'Demo',
     createdAt: '2026-09-13T00:00:00.000Z',
+    organizationId: null,
     destinations: [],
     ...overrides,
   };

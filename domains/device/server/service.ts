@@ -94,7 +94,11 @@ export async function getForOwner(id: string, ownerId: number): Promise<DeviceDe
     where: eq(destination.deviceId, id),
     orderBy: asc(destination.position),
   });
-  return { ...toSummmary(row), destinations: destinations.map(toDestinationDto) };
+  return {
+    ...toSummmary(row),
+    organizationId: row.organizationId ?? null,
+    destinations: destinations.map(toDestinationDto),
+  };
 }
 
 export async function getById(id: string): Promise<DeviceDetail | null> {
@@ -105,7 +109,11 @@ export async function getById(id: string): Promise<DeviceDetail | null> {
     where: eq(destination.deviceId, id),
     orderBy: asc(destination.position),
   });
-  return { ...toSummmary(row), destinations: destinations.map(toDestinationDto) };
+  return {
+    ...toSummmary(row),
+    organizationId: row.organizationId ?? null,
+    destinations: destinations.map(toDestinationDto),
+  };
 }
 
 export async function getBySlug(slug: string): Promise<DeviceDetail | null> {
@@ -152,7 +160,11 @@ export async function getVisible(id: string, membership: MembershipLike): Promis
     where: eq(destination.deviceId, id),
     orderBy: asc(destination.position),
   });
-  return { ...toSummmary(row), destinations: destinations.map(toDestinationDto) };
+  return {
+    ...toSummmary(row),
+    organizationId: row.organizationId ?? null,
+    destinations: destinations.map(toDestinationDto),
+  };
 }
 
 export async function publishVisible(

@@ -73,6 +73,7 @@ describe('resolveForSlug', () => {
     name: 'Merchant',
     status: 'PUBLISHED',
     createdAt: '2024-01-01',
+    organizationId: null,
     destinations: [
       {
         id: 'x',
