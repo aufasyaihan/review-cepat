@@ -4,17 +4,24 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { device } from '@/db/schema';
 import { adminReset, ownerForgetDevice } from '@/domains/device/server/service';
-import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permissions';
+import {
+  getActiveOrganization,
+  isOwner,
+  type Membership,
+} from '@/domains/merchant/server/permissions';
 import { type ActionResult, fail, ok } from '@/lib/action-result';
 import { requireRole } from '@/lib/session';
 
-async function requireOwnerMembership() {
+async function requireOwnerMembership(): Promise<{
+  membership: Membership;
+  userId: string;
+}> {
   const user = await requireRole('MERCHANT');
   const membership = await getActiveOrganization(user.id);
   if (!membership || !isOwner(membership)) {
     throw new Error('Only an organization owner can make this choice');
   }
-  return membership;
+  return { membership, userId: user.id };
 }
 
 /** /option: claim an org-less device into the caller's own organization. */
@@ -22,7 +29,7 @@ export async function claimForSelfAction(
   deviceId: string,
 ): Promise<ActionResult<{ redirectUrl: string }>> {
   try {
-    const membership = await requireOwnerMembership();
+    const { membership, userId } = await requireOwnerMembership();
     const db = getDb();
     const existing = await db.query.device.findFirst({ where: eq(device.id, deviceId) });
     if (!existing || existing.organizationId !== null) {
@@ -33,6 +40,7 @@ export async function claimForSelfAction(
       .set({
         organizationId: membership.organizationId,
         memberId: membership.id,
+        boundUserId: userId,
         status: 'CLAIMED',
         updatedAt: new Date(),
       })
@@ -48,7 +56,7 @@ export async function resellDeviceAction(
   deviceId: string,
 ): Promise<ActionResult<{ claimCode: string }>> {
   try {
-    const membership = await requireOwnerMembership();
+    const { membership } = await requireOwnerMembership();
     const db = getDb();
     const existing = await db.query.device.findFirst({ where: eq(device.id, deviceId) });
     if (

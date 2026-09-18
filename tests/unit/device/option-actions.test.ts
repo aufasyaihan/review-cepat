@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const dbMock = { query: { device: { findFirst: vi.fn() } }, update: vi.fn() };
+const dbMock: {
+  query: { device: { findFirst: ReturnType<typeof vi.fn> } };
+  update: ReturnType<typeof vi.fn>;
+  setPayload?: Record<string, unknown>;
+} = { query: { device: { findFirst: vi.fn() } }, update: vi.fn() };
 vi.mock('@/db', () => ({ getDb: () => dbMock }));
 vi.mock('@/lib/session', () => ({ requireRole: vi.fn() }));
 vi.mock('@/domains/merchant/server/permissions', () => ({
@@ -19,7 +23,11 @@ import { requireRole } from '@/lib/session';
 
 function chainable() {
   const where = vi.fn().mockResolvedValue(undefined);
-  return { where, set: vi.fn().mockReturnValue({ where }) };
+  const set = vi.fn((values: Record<string, unknown>) => {
+    dbMock.setPayload = values;
+    return { where };
+  });
+  return { where, set };
 }
 
 beforeEach(() => {
@@ -56,6 +64,12 @@ describe('claimForSelfAction', () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.redirectUrl).toBe('/dashboard');
     expect(dbMock.update).toHaveBeenCalled();
+    expect(dbMock.setPayload).toMatchObject({
+      organizationId: 'org-1',
+      memberId: 'mem-1',
+      boundUserId: 'user-1',
+      status: 'CLAIMED',
+    });
   });
 
   it('fails when the device already belongs to another org', async () => {
