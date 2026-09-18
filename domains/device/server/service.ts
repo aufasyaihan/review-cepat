@@ -471,6 +471,37 @@ export async function adminReset(id: string): Promise<{
   return { device: toSummmary(await readDeviceOrFail(id)), claimCode };
 }
 
+/**
+ * Owner-triggered equivalent of adminReset: same clear-and-detach behavior,
+ * but scoped to devices the caller's organization actually owns (unlike
+ * adminReset, which trusts the platform admin caller). Used by the
+ * dashboard's "Forgot device" action and /option's "Resell" choice.
+ */
+export async function ownerForgetDevice(
+  id: string,
+  organizationId: string,
+): Promise<{ device: DeviceSummary; claimCode: string }> {
+  const db = getDb();
+  const owned = await db.query.device.findFirst({
+    where: and(eq(device.id, id), eq(device.organizationId, organizationId)),
+  });
+  if (!owned) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found in this organization');
+
+  const now = new Date();
+  const claimCode = generateClaimCode();
+  await clearDeviceConfig(id, now);
+  await db
+    .update(device)
+    .set({
+      status: 'UNCLAIMED',
+      organizationId: null,
+      claimCodeHash: hashClaimCode(claimCode),
+      updatedAt: now,
+    })
+    .where(eq(device.id, id));
+  return { device: toSummmary(await readDeviceOrFail(id)), claimCode };
+}
+
 // Re-export schema types used by callers
 export type {
   ClaimDeviceInput,
