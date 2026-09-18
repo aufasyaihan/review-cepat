@@ -17,11 +17,17 @@ function okJson(data: unknown) {
 
 import { adminMutations, adminQueries } from '@/domains/admin/api/queries';
 import { analyticsQueries } from '@/domains/analytics/api/queries';
+import { authQueries } from '@/domains/auth/api/queries';
 import { destinationMutations, destinationQueries } from '@/domains/destination/api/mutations';
 import { deviceMutations } from '@/domains/device/api/mutations';
 import { deviceQueries } from '@/domains/device/api/queries';
 import { merchantMutations } from '@/domains/merchant/api/mutations';
-import { merchantQueries } from '@/domains/merchant/api/queries';
+import {
+  adminMerchantListQuery,
+  adminUserListQuery,
+  memberQueries,
+  merchantQueries,
+} from '@/domains/merchant/api/queries';
 import { scanQueries } from '@/domains/scan/api/queries';
 
 type Call = [string, RequestInit];
@@ -111,6 +117,101 @@ describe('api factories', () => {
       const [url] = fetchMock.mock.calls[0] as Call;
       expect(url).toBe('/api/analytics/overview');
     });
+
+    it('encodes a from/to range into the query key and query string', async () => {
+      const range = {
+        from: new Date('2026-01-01T00:00:00.000Z'),
+        to: new Date('2026-02-01T00:00:00.000Z'),
+      };
+      const { queryKey, queryFn } = analyticsQueries.overview(range);
+      expect(queryKey).toEqual([
+        'analytics',
+        'overview',
+        `${range.from.toISOString()}-${range.to.toISOString()}`,
+      ]);
+      fetchMock.mockResolvedValueOnce(okJson({ totalScans: 0 }));
+      await queryFn();
+      const [url] = fetchMock.mock.calls[0] as Call;
+      expect(url).toContain('from=');
+      expect(url).toContain('to=');
+    });
+
+    it('uses queryKey "all" when the range is only partially set', () => {
+      const { queryKey } = analyticsQueries.overview({ from: new Date() });
+      expect(queryKey).toEqual(['analytics', 'overview', 'all']);
+    });
+  });
+
+  describe('analyticsQueries.adminOverview', () => {
+    it('issues GET /api/analytics/admin-overview', async () => {
+      const { queryKey, queryFn } = analyticsQueries.adminOverview();
+      expect(queryKey).toEqual(['analytics', 'admin-overview', 'all']);
+      fetchMock.mockResolvedValueOnce(okJson({ totalScans: 0 }));
+      await queryFn();
+      const [url] = fetchMock.mock.calls[0] as Call;
+      expect(url).toBe('/api/analytics/admin-overview');
+    });
+  });
+
+  describe('analyticsQueries.breakdown', () => {
+    it('issues GET /api/analytics/breakdown with deviceId + dimension', async () => {
+      const { queryKey, queryFn } = analyticsQueries.breakdown('dev-1', 'destination');
+      expect(queryKey).toEqual(['analytics', 'breakdown', 'dev-1', 'destination']);
+      fetchMock.mockResolvedValueOnce(okJson({ rows: [] }));
+      await queryFn();
+      const [url] = fetchMock.mock.calls[0] as Call;
+      expect(url).toBe('/api/analytics/breakdown?deviceId=dev-1&dimension=destination');
+    });
+  });
+
+  describe('authQueries', () => {
+    it('permissions: GET /api/permissions', async () => {
+      const { queryKey, queryFn } = authQueries.permissions();
+      expect(queryKey).toEqual(['auth', 'permissions']);
+      fetchMock.mockResolvedValueOnce(okJson([]));
+      await queryFn();
+      const [url] = fetchMock.mock.calls[0] as Call;
+      expect(url).toBe('/api/permissions');
+    });
+
+    it('rolePermissions: GET /api/roles/:roleId/permissions', async () => {
+      const { queryKey, queryFn } = authQueries.rolePermissions('role-1');
+      expect(queryKey).toEqual(['auth', 'permissions', 'role-1']);
+      fetchMock.mockResolvedValueOnce(okJson([]));
+      await queryFn();
+      const [url] = fetchMock.mock.calls[0] as Call;
+      expect(url).toBe('/api/roles/role-1/permissions');
+    });
+  });
+
+  describe('memberQueries.list', () => {
+    it('issues GET /api/merchant/members', async () => {
+      const { queryFn } = memberQueries.list();
+      fetchMock.mockResolvedValueOnce(okJson([]));
+      await queryFn();
+      const [url] = fetchMock.mock.calls[0] as Call;
+      expect(url).toBe('/api/merchant/members');
+    });
+  });
+
+  describe('adminUserListQuery', () => {
+    it('issues GET /api/members with query params', async () => {
+      const { queryFn } = adminUserListQuery({ q: 'a', page: 2, limit: 10 });
+      fetchMock.mockResolvedValueOnce(okJson({ rows: [], total: 0, page: 2, limit: 10 }));
+      await queryFn();
+      const [url] = fetchMock.mock.calls[0] as Call;
+      expect(url).toBe('/api/members?q=a&page=2&limit=10');
+    });
+  });
+
+  describe('adminMerchantListQuery', () => {
+    it('issues GET /api/organizations with query params', async () => {
+      const { queryFn } = adminMerchantListQuery({ q: 'b', page: 1, limit: 5 });
+      fetchMock.mockResolvedValueOnce(okJson({ rows: [], total: 0, page: 1, limit: 5 }));
+      await queryFn();
+      const [url] = fetchMock.mock.calls[0] as Call;
+      expect(url).toBe('/api/organizations?q=b&page=1&limit=5');
+    });
   });
 
   describe('scanQueries.landing', () => {
@@ -159,6 +260,15 @@ describe('api factories', () => {
       await queryFn();
       const [url] = fetchMock.mock.calls[0] as Call;
       expect(url).toBe('/api/device/d1');
+    });
+
+    it('list: forwards organizationId as a query param when provided', async () => {
+      const { queryKey, queryFn } = deviceQueries.list('org-1');
+      expect(queryKey).toEqual(['device', 'list', 'org-1']);
+      fetchMock.mockResolvedValueOnce(okJson([]));
+      await queryFn();
+      const [url] = fetchMock.mock.calls[0] as Call;
+      expect(url).toBe('/api/device?organizationId=org-1');
     });
   });
 

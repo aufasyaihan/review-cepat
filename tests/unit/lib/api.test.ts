@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/logger', () => ({ logRequest: vi.fn(), logError: vi.fn() }));
 
-import { apiRoute } from '@/lib/api';
+import { apiRoute, fromActionResult } from '@/lib/api';
 import { AppError } from '@/lib/errors';
 import { logError, logRequest } from '@/lib/logger';
 
@@ -57,5 +57,24 @@ describe('apiRoute wrapper (constitution III & VI)', () => {
       error: { code: 'INTERNAL', message: 'Unexpected error' },
     });
     expect(logError).toHaveBeenCalled();
+  });
+});
+
+describe('fromActionResult', () => {
+  it('returns the data as JSON when ok', async () => {
+    const res = fromActionResult({ ok: true, data: { id: 1 } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: 1 });
+  });
+
+  it('defaults to { ok: true } when there is no data', async () => {
+    const res = fromActionResult({ ok: true, data: undefined });
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it('returns a 400 error response when not ok', async () => {
+    const res = fromActionResult({ ok: false, error: 'Invalid input' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: { message: 'Invalid input' } });
   });
 });

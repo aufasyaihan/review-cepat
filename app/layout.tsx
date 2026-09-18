@@ -26,11 +26,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       className={cn('h-full antialiased', 'font-sans', roboto.variable, interHeading.variable)}
+      suppressHydrationWarning
     >
-      <body className="flex min-h-full flex-col">
+      <body className="flex min-h-dvh flex-col">
         <RootProvider>
-          <Toaster richColors closeButton position="top-right" />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+          <Toaster richColors position="top-center" duration={3000} />
+          <main>{children}</main>
         </RootProvider>
       </body>
     </html>

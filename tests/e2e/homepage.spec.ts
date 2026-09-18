@@ -7,7 +7,7 @@ test.describe('marketing homepage', () => {
     await expect(
       page.getByRole('heading', { name: /turn every tap and scan/i }),
     ).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Get started' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Get started' }).first()).toBeVisible();
   });
 
   test('exposes robots.txt and sitemap.xml', async ({ request }) => {

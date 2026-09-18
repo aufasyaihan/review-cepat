@@ -7,6 +7,7 @@ const dbMocks = vi.hoisted(() => ({
   organizationFindMany: vi.fn().mockResolvedValue([]),
   updateWhere: vi.fn().mockResolvedValue(undefined),
   insertValues: vi.fn().mockResolvedValue(undefined),
+  fromWhere: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('@/db', () => {
@@ -21,7 +22,7 @@ vi.mock('@/db', () => {
       from: () => ({
         innerJoin: dbMocks.innerJoin,
         groupBy: dbMocks.groupBy,
-        where: () => ({ groupBy: dbMocks.groupBy }),
+        where: () => Object.assign(dbMocks.fromWhere(), { groupBy: dbMocks.groupBy }),
       }),
     }),
   };
@@ -41,6 +42,7 @@ beforeEach(() => {
   dbMocks.innerJoin.mockResolvedValue([]);
   dbMocks.groupBy.mockResolvedValue([]);
   dbMocks.organizationFindMany.mockResolvedValue([]);
+  dbMocks.fromWhere.mockResolvedValue([]);
 });
 describe('upsertProfile', () => {
   it('inserts when no existing profile', async () => {
@@ -136,8 +138,8 @@ describe('listMerchants', () => {
 
     const result = await listMerchants();
     expect(result).toEqual([
-      { ...profiles[0], deviceCount: 3 },
-      { ...profiles[1], deviceCount: 1 },
+      { ...profiles[0], deviceCount: 3, organizationId: null },
+      { ...profiles[1], deviceCount: 1, organizationId: null },
     ]);
   });
 
@@ -165,6 +167,21 @@ describe('listMerchants', () => {
 
     const result = await listMerchants();
     expect(result[0].deviceCount).toBe(0);
+  });
+
+  it('maps the owner organization id from the member table', async () => {
+    const profiles = [
+      { id: 1, userId: 'u1', businessName: 'A', phone: null, country: null, email: 'a@b.com' },
+    ];
+    const counts = [{ ownerId: 1, cnt: 0 }];
+    const ownerRows = [{ userId: 'u1', organizationId: 'org-1' }];
+
+    dbMocks.innerJoin.mockResolvedValueOnce(profiles);
+    dbMocks.groupBy.mockResolvedValueOnce(counts);
+    dbMocks.fromWhere.mockResolvedValueOnce(ownerRows);
+
+    const result = await listMerchants();
+    expect(result[0].organizationId).toBe('org-1');
   });
 });
 

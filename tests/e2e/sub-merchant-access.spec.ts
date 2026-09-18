@@ -10,9 +10,10 @@ test.describe('sub-merchant isolation', () => {
     await page.getByRole('button', { name: 'Log in' }).click();
     await page.waitForURL('**/dashboard');
 
-    // No analytics / members links for members.
-    await expect(page.getByRole('link', { name: 'Analytics' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Members' })).toHaveCount(0);
+    // No user-management nav for members (owner-only).
+    await expect(page.getByRole('link', { name: 'User management' })).toHaveCount(0);
+    // No analytics section on the member dashboard.
+    await expect(page.getByText('Total scans')).toHaveCount(0);
 
     await page.goto('/devices');
     // Only the assigned device is visible.

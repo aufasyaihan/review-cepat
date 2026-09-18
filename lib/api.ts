@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { ActionResult } from '@/lib/action-result';
 import { toErrorResponse } from '@/lib/errors';
 import { logError, logRequest } from '@/lib/logger';
 
@@ -10,7 +11,11 @@ type Handler = (req: Request, ctx: ApiRouteContext) => Promise<unknown>;
  * and JSON error translation. Handlers only translate HTTP into domain
  * services (constitution III).
  */
-export function apiRoute(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, fn: Handler) {
+export function apiRoute(
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  path: string,
+  fn: Handler,
+) {
   return async (req: Request, ctx: ApiRouteContext): Promise<Response> => {
     const requestId = randomUUID();
     const start = Date.now();
@@ -38,4 +43,10 @@ export function apiRoute(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string
       return res;
     }
   };
+}
+
+/** Bridges a server-action result to an HTTP response for mutation routes. */
+export function fromActionResult<T>(result: ActionResult<T>): Response {
+  if (result.ok) return Response.json(result.data ?? { ok: true });
+  return Response.json({ error: { message: result.error } }, { status: 400 });
 }

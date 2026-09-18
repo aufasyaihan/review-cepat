@@ -22,12 +22,19 @@ platform `role` claim.
 - **Roles**: `ADMIN` users hold a platform-admin account and belong to no organization.
   `MERCHANT` users act within one or more organizations via `member` rows
   (Better Auth organization plugin).
+- **Admin management (FR-052/053)**: an admin can create a platform account directly
+  (name/email/password, assigned to an org with role owner/member — no email
+  invitation), edit name/email/role, reassign the user's org membership (moving the user
+  from one organization to another), assign/disassign devices, and delete (removes
+  membership AND deactivates the account — `status = 'DEACTIVATED'`).
 - **Relationships**: 1—N memberships (member); N—M organizations through `member`.
 
 ### organization (Better Auth plugin)
 
-A merchant business. Created when the first owner registers; the creator is assigned the
-`owner` role by the plugin.
+A merchant business. Created either when the first owner registers (plugin/claim-code
+flow) or by an **admin merchant-create dialog** (FR-054) — an org shell holding the
+business name with **no owner assigned at creation**; the owner is attached later via
+the edit dialog.
 
 - **Fields**: `id`, `name`, `slug` (unique), `logo?`, `metadata?` (JSON), `createdAt`,
   `updatedAt`.
@@ -42,23 +49,31 @@ A user's role inside an organization.
   `role: 'owner' | 'member'`, `createdBy?`, `createdAt`.
 - **Validation**: unique (`organizationId`, `userId`); roles restricted to `owner`
   (reseller) and `member` (sub-merchant). Better Auth last-owner protection prevents
-  removing the last owner.
+  removing the last owner — moving or deleting a user who is the last `owner` of an
+  organization is rejected with a clear error unless ownership is reassigned first.
+  Admin can move a user between organizations (`organizationId`/role updated per the
+  destination org rules) (FR-053).
 - **Relationships**: N—1 organization; N—1 user; 1—N assigned devices (`device.memberId`).
 
 ### invitation (Better Auth plugin)
 
-Pending membership invites sent by the owner.
+Ships with the Better Auth organization plugin. **Unused by the MVP UI** — there is no
+invite/add-member flow (FR-022); members join organizations by self-registering via a
+device claim code (FR-024) or when an admin provisions the account directly (FR-052).
+Kept because the plugin owns the table.
 
 - **Fields**: `id`, `organizationId` (FK), `email`, `role`, `status`, `expiresAt`,
   `inviterId?`, `createdAt`.
 - **Validation**: status lifecycle managed by Better Auth; invitations expire (48h default).
+- **Relationships**: N—1 organization.
 
 ### device
 
 A physical NFC tag or QR code with a platform identity, bound to an organization.
 
 - **Fields**: `id` (uuid PK), `slug` (unique, public URL path segment, immutable),
-  `name`, `status: 'UNCLAIMED' | 'CLAIMED' | 'PUBLISHED' | 'UNPUBLISHED' | 'DISABLED'`,
+  `name`, `status: 'UNCLAIMED' | 'CLAIMED' | 'PUBLISHED' | 'UNPUBLISHED' | 'DISABLED' |
+  'DELETED'`,
   `organizationId` (FK → organization, required, bound at admin creation/sale),
   `memberId?` (FK → member, per-device sub-merchant assignment),
   `boundUserId?` (FK → user, the account that registered/claimed via the claim code),
@@ -120,6 +135,52 @@ One recorded interaction with a public device.
 - **Volume**: appended-only, no updates. Age-out/partitioning is out of MVP scope
   (ponytail: naive unbounded growth, add archival when scan volume requires).
 
+### permission
+
+An endpoint/nav-item row seeded by default. Controls which paths each role can access
+and which items appear in the sidebar (FR-037). Role assignments live in the
+`role_permission` join table, not on this table.
+
+- **Navigation rows**: `is_menu=true`, `parent_id=null`, `icon` set — appear in the
+  sidebar and gate pages in proxy.ts.
+- **API-endpoint rows**: `is_menu=false`, `parent_id` = the page row they serve,
+  `path` = the endpoint (e.g. `/api/device`), `icon` null, dotted label
+  (e.g. `api.create_device`) — gate access at the API layer (FR-037).
+
+- **Fields**: `id` (uuid PK), `path` (unique, non-null; e.g. `/dashboard`,
+  `/devices/new`, or an API route like `/api/device`), `label` (display string;
+  dotted `api.<action>` for API rows), `icon?` (lucide-react icon name, nav rows
+  only), `is_menu` (boolean — true if it appears in the sidebar nav),
+  `parent_id?` (nullable self-reference: for API rows, the id of the page row they
+  serve), `sort` (int — nav order when is_menu=true; 0 for API rows), `createdAt`.
+- **Validation**: `path` unique and non-empty; `is_menu` boolean;
+  API rows (`is_menu=false`) must set `parent_id` to an existing nav permission row.
+- **Relationships**: `role_permission.role_id → permission.id`; `parent_id` is a
+  self-reference; pure configuration table seeded via `db/seed.ts`.
+
+### master_role
+
+Canonical platform roles. Two rows seeded: `ADMIN` and `MERCHANT`.
+
+- **Fields**: `id` (uuid PK), `name` (unique; e.g. `ADMIN`, `MERCHANT`), `description?`.
+- **Seed strategy**: static rows inserted by the seed script.
+
+### role_permission
+
+Join table linking platform roles to permissions, with optional org-role scoping.
+
+- **Fields**: `id` (uuid PK), `role_id` (FK → `master_role.id`), `permission_id`
+  (FK → `permission.id`), `scope?` (`owner` | `member` | `both`/null — null means
+  "no scope restriction": MERCHANT always allowed; `owner` = MERCHANT only if the
+  user's active organization role is `owner`; same for `member`).
+- **Seed strategy**: static rows inserted by the seed script — one link per
+  (role, permission) pair; scoped links carry `owner` or `member` as appropriate.
+  Admin bypass is enforced in code (`can()` / page guards), so every ADMIN→permission
+  link is seeded but the runtime guard short-circuits before consulting the table.
+  MERCHANT→permission links (with or without `scope`) are the effective gate for
+  merchant requests. Layout sidebar and `GET /api/permissions` render from real
+  `role_permission` rows (no admin special-casing).
+
 ## State Transitions (device.status)
 
 ```text
@@ -130,6 +191,9 @@ PUBLISHED ──merchant unpublish──▶ UNPUBLISHED
 UNPUBLISHED ──merchant publish──▶ PUBLISHED        (re-publish allowed)
 {CLAIMED|PUBLISHED|UNPUBLISHED} ──admin disable──▶ DISABLED
 DISABLED  ──admin re-enable──▶   CLAIMED           (admin action)
+ANY ──admin delete──▶ DELETED (soft delete: hidden from all lists; destinations,
+                              member assignment, scan events retained for audit —
+                              admin-only, confirmation dialog, FR-040/045)
 ANY ──owner reset──▶ CLAIMED (destinations cleared, memberId + boundUserId nulled,
                               organizationId KEPT, claim code rotated)   [FR-028]
 ANY ──admin reset──▶ UNCLAIMED (destinations cleared, memberId + boundUserId nulled,
@@ -138,8 +202,8 @@ ANY ──transfer/ownership move──▶ another organization or member
                               (status preserved; reassign organizationId/memberId)
 ```
 
-- `DISABLED`, `UNPUBLISHED`, `UNCLAIMED`, and ownerless/`CLAIMED` devices resolve scans
-  to the INACTIVE outcome (no redirect, no landing links).
+- `DISABLED`, `UNPUBLISHED`, `UNCLAIMED`, `DELETED`, and ownerless/`CLAIMED` devices
+  resolve scans to the INACTIVE outcome (no redirect, no landing links).
 - Resets rotate the claim code (fresh hash) so the device can be set up again.
 - Account binding (`boundUserId`) and member assignment (`memberId`) are separate from
   status: a device can be PUBLISHED via accountless setup while `boundUserId` is still
@@ -148,10 +212,15 @@ ANY ──transfer/ownership move──▶ another organization or member
 ## Authorization Visibility
 
 - `owner` (reseller) — sees analytics + every device where `device.organizationId` is
-  in one of their organizations; can manage members and reset (keep-org) their devices.
+  in one of their organizations; can manage members (view/role-edit/remove — no
+  invite/add) and reset (keep-org) their devices.
 - `member` (sub-merchant) — sees only devices where `device.memberId = <their member row>`
   (FR-025/027, SC-008); device management only; analytics and member management denied.
 - `ADMIN` — sees all organizations and devices; can disable devices and reset (clear-org).
+  Admin user-management/merchants lists are **server-driven** (debounced `q`/
+  `organizationId`/`page`/`limit` queries, FR-055); the admin also performs full CRUD on
+  user accounts (FR-052) and merchant organizations (FR-054) with admin-only guard checks
+  bypassed per FR-041.
 
 ## Indexes / Constraints (summary)
 

@@ -1,35 +1,10 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-
-import { destinationKeys, destinationQueries } from '@/domains/destination/api/mutations';
+import { DestinationRow, type DestinationRowValue } from '@/components/forms/destination-editor';
 import { saveSetupDestinationsAction } from '@/domains/destination/server/setup-actions';
 import { useAction } from '@/hooks/use-action';
-
-type RowType =
-  | 'GOOGLE_REVIEW'
-  | 'INSTAGRAM'
-  | 'FACEBOOK'
-  | 'TIKTOK'
-  | 'WHATSAPP'
-  | 'WEBSITE'
-  | 'CUSTOM_URL';
-
-const TYPE_OPTIONS: RowType[] = [
-  'GOOGLE_REVIEW',
-  'INSTAGRAM',
-  'FACEBOOK',
-  'TIKTOK',
-  'WHATSAPP',
-  'WEBSITE',
-  'CUSTOM_URL',
-];
-
-type Row = { type: RowType; label: string; url: string; placeId: string };
-
-const field = 'w-full rounded border px-3 py-2 text-sm';
 
 export function SetupRedirectClient({
   deviceId,
@@ -42,7 +17,7 @@ export function SetupRedirectClient({
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<'single' | 'multi'>('single');
-  const [rows, setRows] = useState<Row[]>([
+  const [rows, setRows] = useState<DestinationRowValue[]>([
     { type: 'GOOGLE_REVIEW', label: '', url: '', placeId: '' },
   ]);
 
@@ -64,7 +39,7 @@ export function SetupRedirectClient({
     },
   );
 
-  const update = (i: number, patch: Partial<Row>) =>
+  const update = (i: number, patch: Partial<DestinationRowValue>) =>
     setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
 
   const setRowFromPlace = (i: number, place: { googlePlaceId: string; name: string }) =>
@@ -110,64 +85,32 @@ export function SetupRedirectClient({
             Single link: pick a business on Google — customers are redirected straight to its review
             page.
           </p>
-          <PlaceSearch
-            value={rows[0]?.label ?? ''}
-            onSelect={(place) => setRowFromPlace(0, place)}
-          />
+          {rows.length > 0 && (
+            <DestinationRow
+              // biome-ignore lint/suspicious/noArrayIndexKey: single row, index is position identity
+              key={0}
+              index={0}
+              row={rows[0]!}
+              onUpdate={(patch) => update(0, patch)}
+              onPlace={(place) => setRowFromPlace(0, place)}
+              onRemove={() => setRows([])}
+              canRemove={false}
+            />
+          )}
         </div>
       ) : (
         <div className="space-y-3 rounded border p-5">
           {rows.map((row, i) => (
-            <div
+            <DestinationRow
               // biome-ignore lint/suspicious/noArrayIndexKey: editable unsaved rows, index is position identity until saved
               key={i}
-              className="space-y-2 rounded border p-3"
-            >
-              <div className="flex items-center gap-2">
-                <select
-                  value={row.type}
-                  onChange={(e) => update(i, { type: e.target.value as RowType })}
-                  className={field}
-                  aria-label={`Destination type ${i + 1}`}
-                >
-                  {TYPE_OPTIONS.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setRows((r) => r.filter((_, idx) => idx !== i))}
-                  className="ml-auto rounded border px-2 text-sm hover:bg-muted"
-                  aria-label="Remove destination"
-                  disabled={rows.length <= 1}
-                >
-                  ✕
-                </button>
-              </div>
-
-              <input
-                value={row.label}
-                onChange={(e) => update(i, { label: e.target.value })}
-                placeholder={row.type === 'GOOGLE_REVIEW' ? 'Business name' : 'Label (optional)'}
-                aria-label={`Label ${i + 1}`}
-                className={field}
-              />
-
-              {row.type === 'GOOGLE_REVIEW' ? (
-                <PlaceSearch value={row.label} onSelect={(place) => setRowFromPlace(i, place)} />
-              ) : (
-                <input
-                  value={row.url}
-                  onChange={(e) => update(i, { url: e.target.value })}
-                  placeholder="https://…"
-                  type="url"
-                  aria-label="Destination URL"
-                  className={field}
-                />
-              )}
-            </div>
+              index={i}
+              row={row}
+              onUpdate={(patch) => update(i, patch)}
+              onPlace={(place) => setRowFromPlace(i, place)}
+              onRemove={() => setRows((r) => r.filter((_, idx) => idx !== i))}
+              canRemove={rows.length > 1}
+            />
           ))}
           <button
             type="button"
@@ -198,70 +141,6 @@ export function SetupRedirectClient({
               : 'Add at least one destination.'}
         </p>
       </div>
-    </div>
-  );
-}
-
-function PlaceSearch({
-  value,
-  onSelect,
-}: {
-  value: string;
-  onSelect: (p: { googlePlaceId: string; name: string }) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [submitted, setSubmitted] = useState('');
-  const { data, isFetching } = useQuery({
-    queryKey: destinationKeys.places(submitted),
-    queryFn: () => destinationQueries.places(submitted).queryFn(),
-    enabled: submitted.length > 0,
-  });
-
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search a business on Google…"
-          aria-label="Search a business on Google"
-          className={field}
-        />
-        <button
-          type="button"
-          disabled={isFetching || query.trim().length === 0}
-          onClick={() => setSubmitted(query)}
-          className="rounded border px-3 text-sm hover:bg-muted disabled:opacity-60"
-        >
-          {isFetching ? '…' : 'Search'}
-        </button>
-      </div>
-      {submitted && data && data.length > 0 && (
-        <ul className="space-y-1">
-          {data.map((p) => (
-            <li key={p.googlePlaceId}>
-              <button
-                type="button"
-                onClick={() => {
-                  onSelect({ googlePlaceId: p.googlePlaceId, name: p.name });
-                  setQuery(p.name);
-                }}
-                className="w-full rounded border p-2 text-left text-sm hover:bg-muted"
-              >
-                <span className="font-medium">{p.name}</span>
-                {p.formattedAddress && (
-                  <span className="block text-xs text-muted-foreground">{p.formattedAddress}</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {value && (
-        <p className="text-xs text-muted-foreground">
-          Selected: <span className="font-medium">{value}</span>
-        </p>
-      )}
     </div>
   );
 }

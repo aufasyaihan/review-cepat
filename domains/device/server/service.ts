@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, ne } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { destination, device, merchantProfile, organization, scanEvent } from '@/db/schema';
@@ -100,7 +100,7 @@ export async function getForOwner(id: string, ownerId: number): Promise<DeviceDe
 export async function getById(id: string): Promise<DeviceDetail | null> {
   const db = getDb();
   const row = await db.query.device.findFirst({ where: eq(device.id, id) });
-  if (!row) return null;
+  if (!row || row.status === 'DELETED') return null;
   const destinations = await db.query.destination.findMany({
     where: eq(destination.deviceId, id),
     orderBy: asc(destination.position),
@@ -136,7 +136,7 @@ function orgAccessWhere(membership: MembershipLike) {
  */
 export async function listVisible(membership: MembershipLike): Promise<DeviceSummary[]> {
   const rows = await getDb().query.device.findMany({
-    where: orgAccessWhere(membership),
+    where: and(orgAccessWhere(membership), ne(device.status, 'DELETED')),
     orderBy: desc(device.createdAt),
   });
   return rows.map(toSummmary);
@@ -145,7 +145,7 @@ export async function listVisible(membership: MembershipLike): Promise<DeviceSum
 export async function getVisible(id: string, membership: MembershipLike): Promise<DeviceDetail> {
   const db = getDb();
   const row = await db.query.device.findFirst({
-    where: and(eq(device.id, id), orgAccessWhere(membership)),
+    where: and(eq(device.id, id), orgAccessWhere(membership), ne(device.status, 'DELETED')),
   });
   if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
   const destinations = await db.query.destination.findMany({
@@ -193,6 +193,37 @@ export async function unpublishVisible(
   await db
     .update(device)
     .set({ status: 'UNPUBLISHED', updatedAt: new Date() })
+    .where(eq(device.id, id));
+  return toSummmary(await readDeviceOrFail(id));
+}
+
+/** Admin renames any device (FR-045, Phase 17). */
+export async function adminRenameDevice(id: string, name: string): Promise<DeviceSummary> {
+  const db = getDb();
+  const row = await db.query.device.findFirst({ where: eq(device.id, id) });
+  if (!row || row.status === 'DELETED')
+    throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
+  await db
+    .update(device)
+    .set({ name: name.trim(), updatedAt: new Date() })
+    .where(eq(device.id, id));
+  return toSummmary(await readDeviceOrFail(id));
+}
+
+/** Owner/org-member renames a device they can see (FR-045, Phase 17). */
+export async function renameVisibleDevice(
+  id: string,
+  membership: MembershipLike,
+  name: string,
+): Promise<DeviceSummary> {
+  const db = getDb();
+  const row = await db.query.device.findFirst({
+    where: and(eq(device.id, id), orgAccessWhere(membership), ne(device.status, 'DELETED')),
+  });
+  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
+  await db
+    .update(device)
+    .set({ name: name.trim(), updatedAt: new Date() })
     .where(eq(device.id, id));
   return toSummmary(await readDeviceOrFail(id));
 }
@@ -340,6 +371,7 @@ export async function adminCreate(input: unknown): Promise<CreateDeviceResult> {
 
 export async function adminList(): Promise<DeviceSummary[]> {
   const rows = await getDb().query.device.findMany({
+    where: ne(device.status, 'DELETED'),
     orderBy: desc(device.createdAt),
   });
   return rows.map(toSummmary);
@@ -351,6 +383,18 @@ export async function adminSetDisabled(id: string, disabled: boolean): Promise<D
   if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
   const status: DeviceStatus = disabled ? 'DISABLED' : 'CLAIMED';
   await db.update(device).set({ status, updatedAt: new Date() }).where(eq(device.id, id));
+  return toSummmary(await readDeviceOrFail(id));
+}
+
+/** Soft delete (FR-040): marks DELETED, keeps the row and its scan/member rows. */
+export async function deleteDevice(id: string): Promise<DeviceSummary> {
+  const db = getDb();
+  const row = await findDevice(id);
+  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
+  await db
+    .update(device)
+    .set({ status: 'DELETED', updatedAt: new Date() })
+    .where(eq(device.id, id));
   return toSummmary(await readDeviceOrFail(id));
 }
 

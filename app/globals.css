@@ -6,10 +6,10 @@
 
 :root {
   --border: oklch(0.922 0 0);
-  --primary: oklch(0.488 0.243 264.376);
-  --primary-foreground: oklch(0.97 0.014 254.604);
+  --primary: #c2410c;
+  --primary-foreground: oklch(1 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.535 0 0);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -22,21 +22,24 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  --ring: oklch(0.72 0.19 68);
+  --success: oklch(0.596 0.145 163.225);
+  --info: oklch(0.585 0.121 242.847);
+  --warning: oklch(0.76 0.19 84.429);
+  --chart-1: oklch(0.72 0.19 68);
+  --chart-2: oklch(0.55 0.14 200);
+  --chart-3: oklch(0.62 0.2 30);
+  --chart-4: oklch(0.5 0.12 250);
+  --chart-5: oklch(0.8 0.15 85);
   --radius: 0.45rem;
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(0.985 0.006 68);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.546 0.245 262.881);
-  --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
-  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-primary: oklch(0.62 0.19 66);
+  --sidebar-primary-foreground: oklch(0.18 0.04 60);
+  --sidebar-accent: oklch(0.96 0.012 68);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-border: oklch(0.922 0.01 68);
+  --sidebar-ring: oklch(0.72 0.19 68);
 }
 
 @theme inline {
@@ -73,6 +76,9 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-warning: var(--warning);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -94,8 +100,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.424 0.199 265.638);
-  --primary-foreground: oklch(0.97 0.014 254.604);
+  --primary: oklch(0.78 0.17 68);
+  --primary-foreground: oklch(0.16 0.02 60);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -105,20 +111,23 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  --ring: oklch(0.78 0.17 68);
+  --success: oklch(0.788 0.146 158.481);
+  --info: oklch(0.759 0.103 239.471);
+  --warning: oklch(0.828 0.153 87.417);
+  --chart-1: oklch(0.72 0.19 68);
+  --chart-2: oklch(0.55 0.14 200);
+  --chart-3: oklch(0.62 0.2 30);
+  --chart-4: oklch(0.5 0.12 250);
+  --chart-5: oklch(0.8 0.15 85);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.623 0.214 259.815);
-  --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
+  --sidebar-primary: oklch(0.78 0.17 68);
+  --sidebar-primary-foreground: oklch(0.16 0.02 60);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.78 0.17 68);
 }
 
 @layer base {
@@ -131,4 +140,35 @@
   html {
     @apply font-sans;
   }
+}
+
+::view-transition-old(root) {
+  animation: vta-fade-out 0.5s ease-in-out both;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  animation: vta-clip-in 0.5s ease-in-out both;
+  mix-blend-mode: normal;
+}
+
+@keyframes vta-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vta-clip-in {
+  from {
+    clip-path: circle(0% at var(--vta-x, 50%) var(--vta-y, 50%));
+  }
+  to {
+    clip-path: circle(var(--vta-r, 150%) at var(--vta-x, 50%) var(--vta-y, 50%));
+  }
+}
+
+/* Sonner success toast: keep title/description at WCAG AA on the emerald tint */
+[data-sonner-toast][data-type="success"][data-rich-colors="true"] [data-title],
+[data-sonner-toast][data-type="success"][data-rich-colors="true"] [data-description] {
+  color: #166534;
 }

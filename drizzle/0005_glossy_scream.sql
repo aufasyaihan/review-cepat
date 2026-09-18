@@ -1,0 +1,1 @@
+ALTER TABLE `permission` ADD `parent_id` varchar(36);

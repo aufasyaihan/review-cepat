@@ -4,6 +4,7 @@ export const DEVICE_STATUS = [
   'PUBLISHED',
   'UNPUBLISHED',
   'DISABLED',
+  'DELETED',
 ] as const;
 export type DeviceStatus = (typeof DEVICE_STATUS)[number];
 

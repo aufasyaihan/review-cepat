@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test';
 
 // US1 — merchant claims a device, configures a destination, publishes it.
-// Fixtures come from db/seed/e2e.ts (review_cepat_test only).
+// Fixtures come from db/seed/e2e.ts (review_cepat_test only). Uses the
+// dedicated e2e-merchant-claim device so it never contends with setup-claim.
 test.describe('merchant claim → configure → publish', () => {
-  test('claims /s/e2e-unclaimed with its one-time code and publishes it', async ({ page }) => {
+  test('claims /s/e2e-merchant-claim with its one-time code and publishes it', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill('merchant@e2e.local');
     await page.getByLabel('Password').fill('E2e-merchant-123');
@@ -11,7 +12,7 @@ test.describe('merchant claim → configure → publish', () => {
     await page.waitForURL('**/dashboard');
 
     await page.goto('/devices/claim');
-    await page.getByLabel('Claim code').fill('E2ECLAIM1');
+    await page.getByLabel('Claim code').fill('E2EMERCH1');
     await page.getByRole('button', { name: 'Claim device' }).click();
     await page.waitForURL('**/devices/**');
 

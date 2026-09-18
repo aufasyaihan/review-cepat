@@ -6,6 +6,7 @@ vi.mock('@/lib/session', () => ({
     .fn()
     .mockResolvedValue({ user: { id: 'u1', role: 'MERCHANT' }, merchantId: 7 }),
   requireApiUser: vi.fn().mockResolvedValue({ id: 'u1', role: 'ADMIN' }),
+  requireApiPermission: vi.fn().mockResolvedValue({ id: 'u1', role: 'ADMIN' }),
   requireApiMembership: vi.fn().mockResolvedValue({
     id: 'm1',
     organizationId: 'org-1',
@@ -19,7 +20,10 @@ vi.mock('@/domains/device/server/service', () => ({
   adminCreate: vi.fn(),
   adminSetDisabled: vi.fn(),
   adminReset: vi.fn(),
+  deleteDevice: vi.fn(),
   ownerReset: vi.fn(),
+  adminRenameDevice: vi.fn(),
+  renameVisibleDevice: vi.fn(),
 }));
 vi.mock('@/domains/merchant/server/service', () => ({
   claimWithCode: vi.fn(),
@@ -35,7 +39,9 @@ import { revalidatePath } from 'next/cache';
 import {
   claimDeviceAction,
   createDeviceAction,
+  deleteDeviceAction,
   publishDeviceAction,
+  renameDeviceAction,
   resetDeviceAction,
   setDeviceDisabledAction,
   transferDeviceAction,
@@ -43,10 +49,13 @@ import {
 } from '@/domains/device/server/actions';
 import {
   adminCreate,
+  adminRenameDevice,
   adminReset,
   adminSetDisabled,
+  deleteDevice,
   ownerReset,
   publishVisible,
+  renameVisibleDevice,
   transfer,
   unpublishVisible,
 } from '@/domains/device/server/service';
@@ -174,7 +183,7 @@ describe('device actions', () => {
       vi.mocked(adminCreate).mockResolvedValueOnce({ device: summary, claimCode: 'X' } as never);
       const result = await createDeviceAction('New');
       expect(result.ok).toBe(true);
-      expect(revalidatePath).toHaveBeenCalledWith('/admin/devices');
+      expect(revalidatePath).toHaveBeenCalledWith('/devices');
     });
 
     it('schema-invalid returns ok:false without calling adminCreate', async () => {
@@ -200,12 +209,76 @@ describe('device actions', () => {
       } as never);
       const result = await setDeviceDisabledAction('dev-1', true);
       expect(result.ok).toBe(true);
-      expect(revalidatePath).toHaveBeenCalledWith('/admin/devices');
+      expect(revalidatePath).toHaveBeenCalledWith('/devices');
     });
 
     it('service-throws returns ok:false', async () => {
       vi.mocked(adminSetDisabled).mockRejectedValueOnce(new Error('Device not found'));
       const result = await setDeviceDisabledAction('dev-1', true);
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  // deleteDeviceAction
+  describe('deleteDeviceAction', () => {
+    it('ok path', async () => {
+      vi.mocked(deleteDevice).mockResolvedValueOnce({
+        ...summary,
+        status: 'DELETED',
+      } as never);
+      const result = await deleteDeviceAction('dev-1');
+      expect(result.ok).toBe(true);
+      expect(revalidatePath).toHaveBeenCalledWith('/devices');
+    });
+
+    it('service-throws returns ok:false', async () => {
+      vi.mocked(deleteDevice).mockRejectedValueOnce(new Error('Device not found'));
+      const result = await deleteDeviceAction('dev-1');
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  // renameDeviceAction
+  describe('renameDeviceAction', () => {
+    it('rejects an invalid name without touching the service', async () => {
+      const result = await renameDeviceAction('dev-1', '');
+      expect(result.ok).toBe(false);
+      expect(adminRenameDevice).not.toHaveBeenCalled();
+      expect(renameVisibleDevice).not.toHaveBeenCalled();
+    });
+
+    it('admin scope (default) renames and revalidates', async () => {
+      vi.mocked(adminRenameDevice).mockResolvedValueOnce({ ...summary, name: 'New' } as never);
+      const result = await renameDeviceAction('dev-1', 'New');
+      expect(result.ok).toBe(true);
+      expect(adminRenameDevice).toHaveBeenCalledWith('dev-1', 'New');
+      expect(revalidatePath).toHaveBeenCalledWith('/devices');
+      expect(revalidatePath).toHaveBeenCalledWith('/devices/dev-1');
+    });
+
+    it('admin scope maps service failures', async () => {
+      vi.mocked(adminRenameDevice).mockRejectedValueOnce(new Error('Device not found'));
+      const result = await renameDeviceAction('dev-1', 'New', 'admin');
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toContain('Device not found');
+    });
+
+    it('owner scope renames via the visible-device path', async () => {
+      vi.mocked(renameVisibleDevice).mockResolvedValueOnce({ ...summary, name: 'New' } as never);
+      const result = await renameDeviceAction('dev-1', 'New', 'owner');
+      expect(result.ok).toBe(true);
+      expect(renameVisibleDevice).toHaveBeenCalledWith(
+        'dev-1',
+        { id: 'm1', organizationId: 'org-1', role: 'owner' },
+        'New',
+      );
+      expect(revalidatePath).toHaveBeenCalledWith('/devices');
+      expect(revalidatePath).toHaveBeenCalledWith('/devices/dev-1');
+    });
+
+    it('owner scope maps service failures', async () => {
+      vi.mocked(renameVisibleDevice).mockRejectedValueOnce(new Error('Not found'));
+      const result = await renameDeviceAction('dev-1', 'New', 'owner');
       expect(result.ok).toBe(false);
     });
   });
@@ -216,7 +289,7 @@ describe('device actions', () => {
       vi.mocked(adminReset).mockResolvedValueOnce({ device: summary, claimCode: 'NEW' } as never);
       const result = await resetDeviceAction('dev-1', 'admin');
       expect(result.ok).toBe(true);
-      expect(revalidatePath).toHaveBeenCalledWith('/admin/devices');
+      expect(revalidatePath).toHaveBeenCalledWith('/devices');
     });
 
     it('admin scope maps failures', async () => {

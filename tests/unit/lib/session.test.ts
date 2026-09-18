@@ -20,7 +20,11 @@ vi.mock('@/domains/merchant/server/service', () => ({
 vi.mock('@/domains/merchant/server/permissions', () => ({
   getActiveOrganization: vi.fn(),
 }));
+vi.mock('@/domains/auth/server/permissions', () => ({
+  can: vi.fn(),
+}));
 
+import { can } from '@/domains/auth/server/permissions';
 import { getActiveOrganization } from '@/domains/merchant/server/permissions';
 import { getProfileByUserId } from '@/domains/merchant/server/service';
 import { auth } from '@/lib/auth';
@@ -28,6 +32,7 @@ import {
   getSession,
   requireApiMembership,
   requireApiMerchant,
+  requireApiPermission,
   requireApiUser,
   requireMembership,
   requireRole,
@@ -162,6 +167,27 @@ describe('lib/session', () => {
       getOrgMock.mockResolvedValueOnce({ id: 'm1', organizationId: 'org-1', role: 'owner' });
       const membership = await requireApiMembership();
       expect(membership.organizationId).toBe('org-1');
+    });
+  });
+
+  describe('requireApiPermission', () => {
+    it('throws ForbiddenError NO_PERMISSION when can() denies access', async () => {
+      getSessionMock.mockResolvedValueOnce(sessionUser({}));
+      getOrgMock.mockResolvedValueOnce({ id: 'm1', organizationId: 'org-1', role: 'member' });
+      vi.mocked(can).mockResolvedValueOnce(false);
+      await expect(requireApiPermission('/api/device/delete')).rejects.toMatchObject({
+        status: 403,
+        code: 'NO_PERMISSION',
+      });
+    });
+
+    it('returns the user when can() allows access, with no active organization', async () => {
+      getSessionMock.mockResolvedValueOnce(sessionUser({ role: 'ADMIN' }));
+      getOrgMock.mockResolvedValueOnce(null);
+      vi.mocked(can).mockResolvedValueOnce(true);
+      const user = await requireApiPermission('/api/device/delete');
+      expect(user.role).toBe('ADMIN');
+      expect(can).toHaveBeenCalledWith('ADMIN', null, '/api/device/delete');
     });
   });
 

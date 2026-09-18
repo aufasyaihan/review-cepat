@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { AppError, ForbiddenError, toErrorResponse, UnauthorizedError } from '@/lib/errors';
 
@@ -50,6 +51,26 @@ describe('lib/errors', () => {
       // consume body
       return res.json().then((body) => {
         expect(body).toEqual({ error: { code: 'VALIDATION', message: 'Bad input' } });
+      });
+    });
+
+    it('returns 400 VALIDATION with the first issue message for a ZodError', () => {
+      const schema = z.object({ name: z.string().min(1, 'Name is required') });
+      const result = schema.safeParse({ name: '' });
+      expect(result.success).toBe(false);
+      const res = toErrorResponse(result.error);
+      expect(res.status).toBe(400);
+      return res.json().then((body) => {
+        expect(body).toEqual({ error: { code: 'VALIDATION', message: 'Name is required' } });
+      });
+    });
+
+    it('falls back to a generic validation message when a ZodError has no issues', () => {
+      const err = new z.ZodError([]);
+      const res = toErrorResponse(err);
+      expect(res.status).toBe(400);
+      return res.json().then((body) => {
+        expect(body).toEqual({ error: { code: 'VALIDATION', message: 'Invalid request' } });
       });
     });
 

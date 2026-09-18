@@ -65,13 +65,15 @@ describe('lib/http', () => {
     expect(init.headers['X-Foo']).toBe('bar');
   });
 
-  it('put and delete methods return builders', async () => {
+  it('put, patch, and delete methods return builders', async () => {
     fetchMock.mockResolvedValue(okJson({}));
     await api.put('/x').send();
+    await api.patch('/x').send();
     await api.delete('/x').send();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0][1].method).toBe('PUT');
-    expect(fetchMock.mock.calls[1][1].method).toBe('DELETE');
+    expect(fetchMock.mock.calls[1][1].method).toBe('PATCH');
+    expect(fetchMock.mock.calls[2][1].method).toBe('DELETE');
   });
 
   it('non-ok response with JSON error throws the message', async () => {

@@ -3,14 +3,18 @@ import { api } from '@/lib/http';
 
 export const deviceKeys = {
   all: ['device'] as const,
-  lists: () => [...deviceKeys.all, 'list'] as const,
+  lists: (organizationId?: string) => [...deviceKeys.all, 'list', organizationId] as const,
   detail: (id: string) => [...deviceKeys.all, 'detail', id] as const,
 };
 
 export const deviceQueries = {
-  list: () => ({
-    queryKey: deviceKeys.lists(),
-    queryFn: () => api.get<DeviceSummary[]>('/api/device').send(),
+  list: (organizationId?: string) => ({
+    queryKey: deviceKeys.lists(organizationId),
+    queryFn: () =>
+      api
+        .get<DeviceSummary[]>('/api/device')
+        .setQuery(organizationId ? { organizationId } : {})
+        .send(),
   }),
   detail: (id: string) => ({
     queryKey: deviceKeys.detail(id),
