@@ -11,6 +11,10 @@ export default async function DeviceOptionPage({ params }: { params: Promise<{ s
   const device = await getBySlug(slug);
   if (!device) notFound();
 
+  if (device.organizationId !== null) {
+    redirect('/dashboard');
+  }
+
   const session = await getSession();
   if (!session) {
     redirect(`/login?d=${issueSetupToken(device.id)}`);

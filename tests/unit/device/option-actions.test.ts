@@ -124,6 +124,29 @@ describe('resellDeviceAction', () => {
     expect(adminReset).toHaveBeenCalledWith('dev-1');
   });
 
+  it('resets an own-org device via ownerForgetDevice', async () => {
+    vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(getActiveOrganization).mockResolvedValue({
+      id: 'mem-1',
+      organizationId: 'org-1',
+      role: 'owner',
+    });
+    vi.mocked(ownerForgetDevice).mockResolvedValue({
+      device: { id: 'dev-1', slug: 's', name: 'D', status: 'UNCLAIMED', createdAt: '' },
+      claimCode: 'WXYZ9876',
+    });
+    dbMock.query.device.findFirst.mockResolvedValue({
+      id: 'dev-1',
+      status: 'CLAIMED',
+      organizationId: 'org-1',
+    });
+    const result = await resellDeviceAction('dev-1');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.claimCode).toBe('WXYZ9876');
+    expect(ownerForgetDevice).toHaveBeenCalledWith('dev-1', 'org-1');
+    expect(adminReset).not.toHaveBeenCalled();
+  });
+
   it('fails when the device belongs to another org', async () => {
     vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
     vi.mocked(getActiveOrganization).mockResolvedValue({
