@@ -264,6 +264,24 @@ async function main() {
     claimCode: 'E2EMERCH1',
   });
 
+  // Dedicated org-less device for the owner/reseller round-trip spec
+  // (tests/e2e/device-option-flow.spec.ts): a signed-in owner entering its
+  // code lands on /s/<slug>/option instead of the direct org bind. Washed
+  // every run so the round trip always starts UNCLAIMED with a known code.
+  const existingRoundTrip = await db.query.device.findFirst({
+    where: eq(device.slug, 'e2e-unclaimed-2'),
+  });
+  if (existingRoundTrip) {
+    await db.delete(device).where(eq(device.id, existingRoundTrip.id));
+  }
+  await ensureDevice({
+    slug: 'e2e-unclaimed-2',
+    name: 'Unclaimed Round Trip Counter',
+    status: 'UNCLAIMED',
+    ownerId: null,
+    claimCode: 'E2ECLAIM',
+  });
+
   // Dedicated device for the admin reset spec, so resetting it never destroys
   // the register-flow device (e2e-register / E2EREGIC1). Washed every run.
   const existingResetTarget = await db.query.device.findFirst({
