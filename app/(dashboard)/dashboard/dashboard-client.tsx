@@ -2,7 +2,6 @@
 
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { Activity, BarChart3, Filter, Smartphone, Tag } from 'lucide-react';
-import Link from 'next/link';
 import { useState } from 'react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
@@ -48,11 +47,8 @@ export function DashboardClient({ userName, isOwner }: { userName: string; isOwn
       <div className="mx-auto max-w-md py-16 text-center">
         <h1 className="text-xl font-semibold">No devices yet</h1>
         <p className="mt-2 text-muted-foreground">
-          Claim a device with its one-time claim code to get started.
+          Scan or open your device&apos;s link to activate it — it will show up here once claimed.
         </p>
-        <Button render={<Link href="/devices/claim" />} nativeButton={false} className="mt-6">
-          Claim a device
-        </Button>
       </div>
     );
   }

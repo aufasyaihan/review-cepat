@@ -4,7 +4,6 @@ import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { cn } from 'cn';
 import { CheckIcon, ChevronsUpDown } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   AlertDialog,
@@ -85,7 +84,6 @@ export function UserManagementClient({ isAdmin }: { isAdmin: boolean }) {
 // ---------------------------------------------------------------------------
 
 function MerchantUsersTable() {
-  const router = useRouter();
   const { data: members } = useSuspenseQuery(memberQueries.list());
   const [pendingDeleteMember, setPendingDeleteMember] = useState<MemberWithUser | null>(null);
 
@@ -124,7 +122,6 @@ function MerchantUsersTable() {
       cell: ({ row }) => <div className="text-right">{row.original.deviceCount}</div>,
     },
     createActionsColumn<MemberWithUser>((row) => [
-      { label: 'Edit', onClick: () => router.push(`/user-management/${row.id}`) },
       { label: 'Delete', variant: 'destructive', onClick: () => setPendingDeleteMember(row) },
     ]),
   ];

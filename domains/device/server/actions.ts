@@ -2,14 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import {
-  claimDeviceSchema,
   createDeviceSchema,
   renameDeviceSchema,
   transferDeviceSchema,
 } from '@/domains/device/schemas';
 import type { CreateDeviceResult, DeviceSummary } from '@/domains/device/types';
 import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permissions';
-import { claimWithCode } from '@/domains/merchant/server/service';
 import { type ActionResult, fail, ok } from '@/lib/action-result';
 import {
   requireApiMembership,
@@ -33,23 +31,6 @@ import {
 
 function toMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Operation failed';
-}
-
-export async function claimDeviceAction(claimCode: string): Promise<ActionResult<DeviceSummary>> {
-  try {
-    const user = await requireApiPermission('/api/device/claim');
-    const membership = await getActiveOrganization(user.id);
-    if (!membership) return fail('Not part of an organization yet');
-
-    const parsed = claimDeviceSchema.safeParse({ claimCode });
-    if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid claim code');
-    const device = await claimWithCode(user.id, membership, parsed.data.claimCode);
-    revalidatePath('/devices');
-    revalidatePath(`/devices/${device.id}`);
-    return ok(device);
-  } catch (err) {
-    return fail(toMessage(err));
-  }
 }
 
 export async function publishDeviceAction(id: string): Promise<ActionResult<DeviceSummary>> {

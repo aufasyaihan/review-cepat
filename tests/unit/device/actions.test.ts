@@ -25,9 +25,6 @@ vi.mock('@/domains/device/server/service', () => ({
   adminRenameDevice: vi.fn(),
   renameVisibleDevice: vi.fn(),
 }));
-vi.mock('@/domains/merchant/server/service', () => ({
-  claimWithCode: vi.fn(),
-}));
 vi.mock('@/domains/merchant/server/permissions', () => ({
   getActiveOrganization: vi
     .fn()
@@ -37,7 +34,6 @@ vi.mock('@/domains/merchant/server/permissions', () => ({
 
 import { revalidatePath } from 'next/cache';
 import {
-  claimDeviceAction,
   createDeviceAction,
   deleteDeviceAction,
   publishDeviceAction,
@@ -60,7 +56,6 @@ import {
   unpublishVisible,
 } from '@/domains/device/server/service';
 import { getActiveOrganization } from '@/domains/merchant/server/permissions';
-import { claimWithCode } from '@/domains/merchant/server/service';
 import { requireApiMerchant, requireApiUser } from '@/lib/session';
 
 const summary = { id: 'dev-1', slug: 's', name: 'D', status: 'CLAIMED', createdAt: 'x' };
@@ -77,45 +72,6 @@ describe('device actions', () => {
       id: 'm1',
       organizationId: 'org-1',
       role: 'owner',
-    });
-  });
-
-  // claimDeviceAction
-  describe('claimDeviceAction', () => {
-    it('ok path', async () => {
-      vi.mocked(claimWithCode).mockResolvedValueOnce(summary as never);
-      const result = await claimDeviceAction('ABC123');
-      expect(result.ok).toBe(true);
-      expect(revalidatePath).toHaveBeenCalledWith('/devices');
-      expect(revalidatePath).toHaveBeenCalledWith('/devices/dev-1');
-    });
-
-    it('fails when caller has no active organization', async () => {
-      vi.mocked(getActiveOrganization).mockResolvedValueOnce(null);
-      const result = await claimDeviceAction('ABC123');
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toContain('organization');
-      expect(claimWithCode).not.toHaveBeenCalled();
-    });
-
-    it('schema-invalid returns ok:false without calling claimWithCode', async () => {
-      const result = await claimDeviceAction('');
-      expect(result.ok).toBe(false);
-      expect(claimWithCode).not.toHaveBeenCalled();
-    });
-
-    it('service-throws returns ok:false with error message', async () => {
-      vi.mocked(claimWithCode).mockRejectedValueOnce(new Error('Device not found'));
-      const result = await claimDeviceAction('ABC123');
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toContain('Device not found');
-    });
-
-    it('non-Error throw maps to generic message', async () => {
-      vi.mocked(claimWithCode).mockRejectedValueOnce('boom');
-      const result = await claimDeviceAction('ABC123');
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toBe('Operation failed');
     });
   });
 

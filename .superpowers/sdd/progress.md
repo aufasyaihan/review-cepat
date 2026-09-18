@@ -1,7 +1,11 @@
-# SDD Progress — feat/dashboard
-Task Phase1 (T001–T004): complete (commit 198750a..83699df, review clean)
-## Phase 2 (T005-T010): complete (commit 18b8bd6, review approved)
-- 7-row permission table (one row per path, roles array; MERCHANT:owner tokens) — matches data-model FR-037
-- proxy.ts role-aware, Node runtime (edge-safe per review); /admin+/analytics passthrough until Phase 6
-- (dashboard) shell: layout/loading/error, AppSidebar inset variant, breadcrumb, ThemeToggle
-- contract domain-api.md updated for orgRole param
+# SDD Progress — feat/device (device claim & reseller flow)
+Task 1: resolveSetupToken — complete (commit 1f94c1a..038abf1, review clean, spec ✅ approved; minor: KEY redeclared in describe block — inert, defer to final review)
+Task 2: resolvePostClaim — complete (commit 038abf1..7c87011, review clean, spec ✅ approved; minor: test doesn't verify .set() payload, defer to final review)
+Task 3: ownerForgetDevice — complete (commit 7c87011..b3f3ebb, review clean, spec ✅ approved; minor: tests shallow on .set payload + org-mismatch path, brief-mandated, defer to final review)
+Task 4: setupClaimCodeAction branch — complete (commit b3f3ebb..3aabbb6, review clean, spec ✅, no issues)
+Task 5: register org auto-creation — complete (commit 3aabbb6..3566dd4, review clean, spec ✅ approved; minors: assert insert includes phone, phone max/trim untested, non-transactional org-create + slug-loop edge (brief-mandated, known ceiling), defer to final review)
+Task 6: ?d= login/register handoff — complete (commit 3566dd4..16a99ff, review clean, spec ✅ approved; minors: resolvePostClaim-throw->fail branch untested, report stat discrepancy cosmetic, defer to final review)
+Task 7: /option page — complete (commit 16a99ff..4be80b8 + fix round f7acbfe, re-review approved, spec ✅; minors: swallowed redirect from requireRole inside action try/catch, resell toast claim-code unasserted, page untested — defer to final review)
+Task 8: linktree — complete (commit f7acbfe..9e9e6de, review clean, spec ✅ approved; minors: INACTIVE branch untested, fieldset semantic sliver (biome-suggested), defer to final review)
+Task 9: dashboard pruning — complete (commit 9e9e6de..2ff6394, review clean, spec ✅ approved; minors: LINK_ROWS<->PERMISSION_ROWS path-completeness unasserted, Forgot entry f-owner visibility untested, defer to final review)
+Task 10: delete superseded dashboard routes — complete (commit 2ff6394..<hash>, review clean, spec ✅; minors: /api/device/claim/route.ts left standing though its UI/permission row are gone, defer to final review)
