@@ -16,18 +16,10 @@ setup → optional account creation) already has a partial implementation:
   tables with `owner`/`member` roles — no schema change needed for the
   reseller hierarchy.
 
-This spec covers the remaining piece: what happens after the claim code is
-validated, when the device has no organization yet, and the caller may or
-may not already have a session — including the reseller "claim for
-yourself vs. resell" decision.
-
-## Out of scope
-
-- `/s/[slug]/links` public multi-link landing page (star rating + linktree).
-- Dashboard route pruning by role (`/devices/[id]`, `/devices/claim`,
-  `/user-management/[memberId]` removal; merchant/sub-merchant nav limits).
-
-Both remain queued as separate sub-projects.
+This spec covers what happens after the claim code is validated (the
+owner/reseller branch), the public multi-link landing page shown to
+customers when a device has several destinations, and pruning the
+dashboard to match each role's allowed pages.
 
 ## Flow
 
@@ -109,6 +101,68 @@ automatically per better-auth) if the user has no membership yet.
 already exists, just unused) and `businessName` becomes **required**
 (currently optional).
 
+### 6. `/s/[slug]/links` public multi-link page (new)
+
+Shown when `resolveOutcome` would otherwise be `LANDING_SHOWN` (device
+`PUBLISHED`, 2+ active destinations) — today's `LandingClient` on
+`/s/[slug]` already covers this case with a plain link list; this
+sub-project replaces that list with the richer linktree design:
+
+- Centered card: business name, short description, then a 1–5 star row.
+- Tapping a star **when a `GOOGLE_REVIEW` destination exists** navigates to
+  `deriveReviewUrl(placeId)` (`domains/destination/constants.ts`) —
+  regardless of which star was tapped. **Caveat to flag explicitly**:
+  Google does not offer a supported URL parameter to pre-fill the star
+  value on its review page — the existing `deriveReviewUrl` helper has no
+  rating param, and I could not confirm one exists. I'll implement the
+  star row as UI affordance (matches the spec's visual ask) but every
+  star sends the visitor to the same review URL; happy to note this
+  limitation in the UI copy, or drop the star-value distinction, if you'd
+  rather not ship a control that doesn't functionally do what it visually
+  implies.
+- Below the stars: one row per remaining active destination
+  (`INSTAGRAM`/`FACEBOOK`/`TIKTOK`/`WHATSAPP`/`WEBSITE`/`CUSTOM_URL`),
+  full-width flex-col buttons, icon derived from `destination.type` via
+  `react-icons/fa` (new dependency — not in `package.json` yet).
+- `LandingClient`/`resolveOutcome`/`buildLandingPayload` stay as the data
+  layer; only the presentation changes, so no `domains/scan` changes
+  beyond exposing `type` per link (already present in `LandingPayload`).
+  Reuses the existing route (`/s/[slug]`) rather than a literal
+  `/s/[slug]/links` path, since `resolveOutcome` already branches
+  `REDIRECTED` vs `LANDING_SHOWN` vs `INACTIVE` server-side on that one
+  route — flag if you specifically want a distinct `/links` URL instead.
+
+### 7. Dashboard route pruning by role (mostly already correct)
+
+Nav is fully data-driven from the `permission`/`role_permission` tables
+(`db/seed/permissions.ts`), not hardcoded per role, so most of this is
+config changes rather than new gating logic:
+
+- **Already correct, no change needed**: merchant's `devices-client.tsx`
+  has no "New device" button (only `admin-devices-client.tsx` does);
+  `user-management-client.tsx` already branches `AdminUsersTable` vs.
+  `MerchantUsersTable`; `/user-management`'s `LINK_ROWS` entry is already
+  `merchantScope: 'owner'` (sub-merchants can't see it, matching "only
+  /dashboard, /devices, /settings").
+- **Bug to fix**: `/merchants`' `LINK_ROWS` entry has `merchantScope: null`
+  (visible to every merchant, owner or member), but the page itself does
+  `requireRole('ADMIN')` — a merchant clicking it today hits a
+  server-side block after seeing the nav item. Remove the MERCHANT link
+  entirely (admin-only nav item).
+- **Remove**: the `/devices/claim` permission row (menu + its
+  `api.claim_device` child) — claiming now happens through `/s/[slug]` →
+  `/option`, not a dashboard page. Delete
+  `app/(dashboard)/devices/claim/*`.
+- **Remove**: `app/(dashboard)/devices/[id]/*` and
+  `app/(dashboard)/user-management/[memberId]/*` route folders per your
+  original note. I need to confirm what replaces per-device destination
+  management (today's `devices/[id]/settings` page) — if devices are
+  configured once during accountless setup and never edited again from
+  the dashboard, this is a straight deletion; if merchants still need to
+  edit destinations post-claim, that capability needs a new home (e.g.
+  inline on `/devices` via a dialog) before I delete the only place it
+  currently lives. Flagging this before deleting rather than guessing.
+
 ## Data model
 
 No schema changes. `device.status` reuses `UNCLAIMED` for "reseller chose
@@ -122,5 +176,13 @@ configured," not a separate status.
   (valid, expired, tampered, malformed).
 - Unit: resell routine clears destinations + rotates code even when none
   existed yet.
+- Unit: `LandingClient`/links-page rendering for each destination type's
+  icon, and that every star tap navigates to the same `deriveReviewUrl`
+  target (given the Google caveat above).
+- Unit: `db/seed/permissions.ts` — `/merchants` and `/devices/claim` no
+  longer resolve for `MERCHANT` in either org-role scope.
 - E2E: extend `tests/e2e/setup-claim.spec.ts` or new spec for the
   session-owner → `/option` → resell → re-claim round trip.
+- E2E: merchant and sub-merchant sidebar contents match the pruned nav
+  (no Merchants, no Claim a device; sub-merchant also has no User
+  management).
