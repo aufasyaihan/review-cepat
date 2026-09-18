@@ -6,12 +6,22 @@ vi.mock('@/domains/device/server/service', () => ({
 vi.mock('@/lib/setup-token', () => ({
   issueSetupToken: vi.fn(() => 'tok-123'),
 }));
+vi.mock('@/domains/merchant/server/service', () => ({
+  resolvePostClaim: vi.fn(),
+}));
+vi.mock('@/lib/session', () => ({
+  getSession: vi.fn(),
+}));
 
 import { claimAccountless } from '@/domains/device/server/service';
 import { setupClaimCodeAction } from '@/domains/device/server/setup-actions';
+import { resolvePostClaim } from '@/domains/merchant/server/service';
+import { getSession } from '@/lib/session';
+import { issueSetupToken } from '@/lib/setup-token';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(getSession).mockResolvedValue(null);
 });
 
 describe('setupClaimCodeAction (US1 step 1)', () => {
@@ -44,5 +54,25 @@ describe('setupClaimCodeAction (US1 step 1)', () => {
     const result = await setupClaimCodeAction('slug-one', { claimCode: 'ABCD1234' });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe('Setup failed');
+  });
+
+  it('uses resolvePostClaim redirect when a session exists', async () => {
+    vi.mocked(claimAccountless).mockResolvedValue({
+      id: 'dev-1',
+      slug: 'slug-one',
+      name: 'Device',
+    } as never);
+    vi.mocked(getSession).mockResolvedValue({
+      id: 'user-1',
+      role: 'MERCHANT',
+      email: 'a@b.com',
+      name: 'A',
+    } as never);
+    vi.mocked(resolvePostClaim).mockResolvedValue({ redirectUrl: '/s/slug-one/option' });
+
+    const result = await setupClaimCodeAction('slug-one', { claimCode: 'ABCD1234' });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.redirectUrl).toBe('/s/slug-one/option');
+    expect(issueSetupToken).not.toHaveBeenCalled();
   });
 });
