@@ -7,10 +7,13 @@ vi.mock('@/domains/merchant/server/permissions', () => ({
   getActiveOrganization: vi.fn(),
   isOwner: (m: { role: string }) => m.role === 'owner',
 }));
-vi.mock('@/domains/device/server/service', () => ({ ownerForgetDevice: vi.fn() }));
+vi.mock('@/domains/device/server/service', () => ({
+  adminReset: vi.fn(),
+  ownerForgetDevice: vi.fn(),
+}));
 
 import { claimForSelfAction, resellDeviceAction } from '@/domains/device/server/option-actions';
-import { ownerForgetDevice } from '@/domains/device/server/service';
+import { adminReset, ownerForgetDevice } from '@/domains/device/server/service';
 import { getActiveOrganization } from '@/domains/merchant/server/permissions';
 import { requireRole } from '@/lib/session';
 
@@ -47,6 +50,7 @@ describe('claimForSelfAction', () => {
     dbMock.query.device.findFirst.mockResolvedValue({
       id: 'dev-1',
       status: 'UNCLAIMED',
+      organizationId: null,
     });
     const result = await claimForSelfAction('dev-1');
     expect(result.ok).toBe(true);
@@ -54,7 +58,7 @@ describe('claimForSelfAction', () => {
     expect(dbMock.update).toHaveBeenCalled();
   });
 
-  it('fails when the device is already claimed', async () => {
+  it('fails when the device already belongs to another org', async () => {
     vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
     vi.mocked(getActiveOrganization).mockResolvedValue({
       id: 'mem-1',
@@ -64,6 +68,7 @@ describe('claimForSelfAction', () => {
     dbMock.query.device.findFirst.mockResolvedValue({
       id: 'dev-1',
       status: 'CLAIMED',
+      organizationId: 'org-other',
     });
     const result = await claimForSelfAction('dev-1');
     expect(result.ok).toBe(false);
@@ -104,12 +109,36 @@ describe('resellDeviceAction', () => {
       organizationId: 'org-1',
       role: 'owner',
     });
-    vi.mocked(ownerForgetDevice).mockResolvedValue({
+    vi.mocked(adminReset).mockResolvedValue({
       device: { id: 'dev-1', slug: 's', name: 'D', status: 'UNCLAIMED', createdAt: '' },
       claimCode: 'ABCD1234',
+    });
+    dbMock.query.device.findFirst.mockResolvedValue({
+      id: 'dev-1',
+      status: 'CLAIMED',
+      organizationId: null,
     });
     const result = await resellDeviceAction('dev-1');
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.claimCode).toBe('ABCD1234');
+    expect(adminReset).toHaveBeenCalledWith('dev-1');
+  });
+
+  it('fails when the device belongs to another org', async () => {
+    vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(getActiveOrganization).mockResolvedValue({
+      id: 'mem-1',
+      organizationId: 'org-1',
+      role: 'owner',
+    });
+    dbMock.query.device.findFirst.mockResolvedValue({
+      id: 'dev-1',
+      status: 'CLAIMED',
+      organizationId: 'org-other',
+    });
+    const result = await resellDeviceAction('dev-1');
+    expect(result.ok).toBe(false);
+    expect(ownerForgetDevice).not.toHaveBeenCalled();
+    expect(adminReset).not.toHaveBeenCalled();
   });
 });

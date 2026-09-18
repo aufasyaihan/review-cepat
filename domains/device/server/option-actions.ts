@@ -3,7 +3,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { device } from '@/db/schema';
-import { ownerForgetDevice } from '@/domains/device/server/service';
+import { adminReset, ownerForgetDevice } from '@/domains/device/server/service';
 import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permissions';
 import { type ActionResult, fail, ok } from '@/lib/action-result';
 import { requireRole } from '@/lib/session';
@@ -25,7 +25,7 @@ export async function claimForSelfAction(
     const membership = await requireOwnerMembership();
     const db = getDb();
     const existing = await db.query.device.findFirst({ where: eq(device.id, deviceId) });
-    if (!existing || existing.status !== 'UNCLAIMED') {
+    if (!existing || existing.organizationId !== null) {
       return fail('This device is not available to claim');
     }
     await db
@@ -49,7 +49,18 @@ export async function resellDeviceAction(
 ): Promise<ActionResult<{ claimCode: string }>> {
   try {
     const membership = await requireOwnerMembership();
-    const result = await ownerForgetDevice(deviceId, membership.organizationId);
+    const db = getDb();
+    const existing = await db.query.device.findFirst({ where: eq(device.id, deviceId) });
+    if (
+      !existing ||
+      (existing.organizationId !== null && existing.organizationId !== membership.organizationId)
+    ) {
+      return fail('This device is not available to resell');
+    }
+    const result =
+      existing.organizationId === null
+        ? await adminReset(deviceId)
+        : await ownerForgetDevice(deviceId, membership.organizationId);
     return ok({ claimCode: result.claimCode });
   } catch (err) {
     return fail(err instanceof Error ? err.message : 'Could not reset this device');
