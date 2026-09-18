@@ -2,13 +2,14 @@
 
 import { useForm } from '@tanstack/react-form';
 import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signUpAction } from '@/domains/auth/server/actions';
+import { linkDeviceAfterAuthAction } from '@/domains/device/server/link-actions';
 import { useAction } from '@/hooks/use-action';
 
 const container = {
@@ -22,9 +23,20 @@ const item = {
 
 export function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const deviceToken = searchParams.get('d');
   const signUp = useAction(signUpAction, {
     successMsg: 'Account created',
-    onSuccess: () => router.push('/dashboard'),
+    onSuccess: async () => {
+      if (deviceToken) {
+        const linked = await linkDeviceAfterAuthAction(deviceToken);
+        if (linked.ok) {
+          router.push(linked.data.redirectUrl);
+          return;
+        }
+      }
+      router.push('/dashboard');
+    },
   });
 
   const form = useForm({
