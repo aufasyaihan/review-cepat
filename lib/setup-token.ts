@@ -54,3 +54,32 @@ export function verifySetupToken(
     return false;
   }
 }
+
+/**
+ * Decodes + verifies a setup token without requiring the caller to already
+ * know the device id (unlike verifySetupToken, which checks against one).
+ * Used by the login/register `?d=` handoff, which only has the token.
+ */
+export function resolveSetupToken(
+  token: string,
+  now: number = Date.now(),
+  key: string = secret(),
+): string | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+    const payload = Buffer.from(parts[0], 'base64url').toString('utf8');
+    const [id, issuedAtRaw] = payload.split('.');
+    if (!id) return null;
+    const issuedAt = Number(issuedAtRaw);
+    if (!Number.isFinite(issuedAt)) return null;
+    if (now - issuedAt > TTL_MS || issuedAt > now + MAX_CLOCK_SKEW_MS) return null;
+    const expected = sign(payload, key);
+    const a = Buffer.from(parts[1]);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+    return id;
+  } catch {
+    return null;
+  }
+}

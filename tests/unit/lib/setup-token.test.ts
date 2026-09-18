@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { issueSetupToken, verifySetupToken } from '@/lib/setup-token';
+import { issueSetupToken, resolveSetupToken, verifySetupToken } from '@/lib/setup-token';
 
 const KEY = 'test-secret';
 
@@ -82,5 +82,31 @@ describe('setup-token', () => {
 
   it('rejects a token that is not a string without throwing', () => {
     expect(verifySetupToken(null as never, 'dev-1', 5_000, KEY)).toBe(false);
+  });
+});
+
+describe('resolveSetupToken', () => {
+  const KEY = 'test-secret';
+  const NOW = 1_700_000_000_000;
+
+  it('returns the device id for a valid token', () => {
+    const token = issueSetupToken('device-1', NOW, KEY);
+    expect(resolveSetupToken(token, NOW + 1000, KEY)).toBe('device-1');
+  });
+
+  it('returns null once the token expires', () => {
+    const token = issueSetupToken('device-1', NOW, KEY);
+    expect(resolveSetupToken(token, NOW + 11 * 60 * 1000, KEY)).toBeNull();
+  });
+
+  it('returns null when the signature is tampered', () => {
+    const token = issueSetupToken('device-1', NOW, KEY);
+    const [payload] = token.split('.');
+    expect(resolveSetupToken(`${payload}.deadbeef`, NOW + 1000, KEY)).toBeNull();
+  });
+
+  it('returns null for a malformed token', () => {
+    expect(resolveSetupToken('not-a-token', NOW, KEY)).toBeNull();
+    expect(resolveSetupToken('', NOW, KEY)).toBeNull();
   });
 });
