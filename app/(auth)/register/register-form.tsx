@@ -28,13 +28,14 @@ export function RegisterForm() {
   });
 
   const form = useForm({
-    defaultValues: { name: '', email: '', password: '', businessName: '' },
+    defaultValues: { name: '', email: '', password: '', businessName: '', phone: '' },
     onSubmit: ({ value }) =>
       signUp.mutate({
         name: value.name,
         email: value.email,
         password: value.password,
-        businessName: value.businessName || undefined,
+        businessName: value.businessName,
+        phone: value.phone,
       }),
   });
 
@@ -102,9 +103,24 @@ export function RegisterForm() {
               <form.Field name="businessName">
                 {(field) => (
                   <motion.div variants={item} className="space-y-2">
-                    <Label htmlFor="businessName">Business name (optional)</Label>
+                    <Label htmlFor="businessName">Business name</Label>
                     <Input
                       id="businessName"
+                      required
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </motion.div>
+                )}
+              </form.Field>
+              <form.Field name="phone">
+                {(field) => (
+                  <motion.div variants={item} className="space-y-2">
+                    <Label htmlFor="phone">Phone number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      required
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                     />

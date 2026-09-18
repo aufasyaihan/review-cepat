@@ -37,6 +37,8 @@ describe('signUpSchema', () => {
       name: '  John  ',
       email: 'j@b.com',
       password: '12345678',
+      businessName: 'Acme',
+      phone: '+15551234567',
     });
     if (!r.success) throw new Error('expected success');
     expect(r.data.name).toBe('John');
@@ -47,6 +49,8 @@ describe('signUpSchema', () => {
       name: 'John',
       email: 'j@b.com',
       password: '1234567',
+      businessName: 'Acme',
+      phone: '+15551234567',
     });
     if (r.success) throw new Error('expected failure');
     expect(r.error.issues[0]?.message).toBe('Password must be at least 8 characters');
@@ -57,6 +61,8 @@ describe('signUpSchema', () => {
       name: 'John',
       email: 'j@b.com',
       password: '1'.repeat(129),
+      businessName: 'Acme',
+      phone: '+15551234567',
     });
     expect(r.success).toBe(false);
   });
@@ -67,17 +73,50 @@ describe('signUpSchema', () => {
       email: 'j@b.com',
       password: '12345678',
       businessName: 'x'.repeat(121),
+      phone: '+15551234567',
     });
     expect(r.success).toBe(false);
   });
 
-  it('accepts omitted businessName', () => {
+  it('rejects missing businessName', () => {
     const r = signUpSchema.safeParse({
       name: 'John',
       email: 'j@b.com',
       password: '12345678',
+      phone: '+15551234567',
     });
-    if (!r.success) throw new Error('expected success');
-    expect(r.data.businessName).toBeUndefined();
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects missing phone', () => {
+    const r = signUpSchema.safeParse({
+      name: 'John',
+      email: 'j@b.com',
+      password: '12345678',
+      businessName: 'Acme',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects empty businessName', () => {
+    const r = signUpSchema.safeParse({
+      name: 'John',
+      email: 'j@b.com',
+      password: '12345678',
+      businessName: '',
+      phone: '+15551234567',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects empty phone', () => {
+    const r = signUpSchema.safeParse({
+      name: 'John',
+      email: 'j@b.com',
+      password: '12345678',
+      businessName: 'Acme',
+      phone: '',
+    });
+    expect(r.success).toBe(false);
   });
 });

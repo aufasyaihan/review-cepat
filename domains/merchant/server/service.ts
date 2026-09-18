@@ -759,7 +759,7 @@ export async function deactivateUser(memberId: string): Promise<void> {
 // Admin organization (merchant) CRUD (FR-054, Phase 17)
 // ---------------------------------------------------------------------------
 
-function slugifyName(name: string): string {
+export function slugifyName(name: string): string {
   const slug = name
     .trim()
     .toLowerCase()
@@ -798,6 +798,30 @@ export async function createOrganizationShell(name: string): Promise<Organizatio
   });
   if (!created) throw new AppError(500, 'ORG_CREATE_FAILED', 'Could not create the merchant');
   return { id: created.id, name: created.name, slug: created.slug, deviceCount: 0 };
+}
+
+/**
+ * Registration-time org creation: the new user becomes the org's owner via
+ * better-auth's organization plugin (unlike createOrganizationShell, which
+ * makes an ownerless shell for admin-assigned merchants).
+ */
+export async function createOrganizationForUser(
+  userId: string,
+  businessName: string,
+): Promise<{ organizationId: string }> {
+  const db = getDb();
+  const trimmed = businessName.trim();
+  let slug = slugifyName(trimmed);
+  for (let i = 0; i < 5; i++) {
+    const existing = await db.query.organization.findFirst({ where: eq(organization.slug, slug) });
+    if (!existing) break;
+    slug = `${slugifyName(trimmed)}-${randomSlug(4)}`;
+  }
+  const created = await auth.api.createOrganization({
+    body: { name: trimmed, slug, userId },
+  });
+  if (!created) throw new AppError(500, 'ORG_CREATE_FAILED', 'Could not create the organization');
+  return { organizationId: created.id };
 }
 
 /** Assigns an owner to a merchant from an existing account (DB-level, admin is not an org member). */
