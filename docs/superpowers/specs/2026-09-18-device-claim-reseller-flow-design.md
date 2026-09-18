@@ -69,8 +69,10 @@ hijack a device they never proved a claim code for.
 
 ### 4. `/s/[slug]/option` page (new)
 
-Session-gated (redirect to `/login` if no session — matches existing
-`proxy.ts` pattern). Two cards, each behind an `AlertDialog` confirmation:
+Session-gated: redirect to `/login?d=<token>` if no session (same signed
+token from step 3, so the session-first entry point round-trips through
+login without losing device context — matches existing `proxy.ts`
+pattern otherwise). Two cards, each behind an `AlertDialog` confirmation:
 
 - **Claim for yourself** — sets `device.organizationId`/`memberId`/
   `boundUserId` to the caller's, status `CLAIMED`. Any destinations already
@@ -109,17 +111,13 @@ Shown when `resolveOutcome` would otherwise be `LANDING_SHOWN` (device
 sub-project replaces that list with the richer linktree design:
 
 - Centered card: business name, short description, then a 1–5 star row.
-- Tapping a star **when a `GOOGLE_REVIEW` destination exists** navigates to
-  `deriveReviewUrl(placeId)` (`domains/destination/constants.ts`) —
-  regardless of which star was tapped. **Caveat to flag explicitly**:
-  Google does not offer a supported URL parameter to pre-fill the star
-  value on its review page — the existing `deriveReviewUrl` helper has no
-  rating param, and I could not confirm one exists. I'll implement the
-  star row as UI affordance (matches the spec's visual ask) but every
-  star sends the visitor to the same review URL; happy to note this
-  limitation in the UI copy, or drop the star-value distinction, if you'd
-  rather not ship a control that doesn't functionally do what it visually
-  implies.
+- Tapping any star, **when a `GOOGLE_REVIEW` destination exists**,
+  navigates to `deriveReviewUrl(placeId)`
+  (`domains/destination/constants.ts`) — confirmed Google has no
+  supported prefill-rating param, so all five stars send the visitor to
+  the same review URL, which itself auto-redirects into the Google Maps
+  app (mobile) or the web review page (desktop). The star value is a
+  visual affordance only, not something the link encodes.
 - Below the stars: one row per remaining active destination
   (`INSTAGRAM`/`FACEBOOK`/`TIKTOK`/`WHATSAPP`/`WEBSITE`/`CUSTOM_URL`),
   full-width flex-col buttons, icon derived from `destination.type` via
@@ -154,14 +152,24 @@ config changes rather than new gating logic:
   `/option`, not a dashboard page. Delete
   `app/(dashboard)/devices/claim/*`.
 - **Remove**: `app/(dashboard)/devices/[id]/*` and
-  `app/(dashboard)/user-management/[memberId]/*` route folders per your
-  original note. I need to confirm what replaces per-device destination
-  management (today's `devices/[id]/settings` page) — if devices are
-  configured once during accountless setup and never edited again from
-  the dashboard, this is a straight deletion; if merchants still need to
-  edit destinations post-claim, that capability needs a new home (e.g.
-  inline on `/devices` via a dialog) before I delete the only place it
-  currently lives. Flagging this before deleting rather than guessing.
+  `app/(dashboard)/user-management/[memberId]/*` route folders. Per-device
+  management moves inline onto the `/devices` list: each row gets an
+  `EllipsisVertical` dropdown (replacing today's `createActionsColumn`
+  row actions) with:
+  - **Edit** — opens a dialog (device name + destination editor, reusing
+    `DestinationRow`/`components/forms/destination-editor.tsx`, the same
+    building block the accountless setup flow uses).
+  - **Reset** — confirmation `AlertDialog`, calls the existing
+    `ownerReset`/`adminReset`-style routine (clears destinations, rotates
+    claim code, keeps the org/member binding).
+  - **Forgot device** — confirmation `AlertDialog`; per the original
+    claim-flow notes, detaches the device from the account/org (nulls
+    `organizationId`/`memberId`/`boundUserId`, status back to
+    `UNCLAIMED`, rotates the claim code — functionally the same reset
+    routine as the `/option` "resell" branch, just triggered from the
+    dashboard instead of the public claim flow).
+  Merchant's existing "Reset" action (`devices-client.tsx`, owner-only)
+  is superseded by this dropdown, not kept alongside it.
 
 ## Data model
 
@@ -178,11 +186,14 @@ configured," not a separate status.
   existed yet.
 - Unit: `LandingClient`/links-page rendering for each destination type's
   icon, and that every star tap navigates to the same `deriveReviewUrl`
-  target (given the Google caveat above).
+  target.
 - Unit: `db/seed/permissions.ts` — `/merchants` and `/devices/claim` no
   longer resolve for `MERCHANT` in either org-role scope.
+- Unit: `/devices` row dropdown — Edit/Reset/Forgot device call the right
+  actions, each confirmation-gated for Reset/Forgot device.
 - E2E: extend `tests/e2e/setup-claim.spec.ts` or new spec for the
-  session-owner → `/option` → resell → re-claim round trip.
+  session-owner → `/option` → resell → re-claim round trip, and the
+  no-session → login (carrying `?d=`) → `/option` round trip.
 - E2E: merchant and sub-merchant sidebar contents match the pruned nav
   (no Merchants, no Claim a device; sub-merchant also has no User
   management).
