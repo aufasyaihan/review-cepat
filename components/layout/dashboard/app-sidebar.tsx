@@ -65,7 +65,7 @@ export function AppSidebar() {
       return;
     }
     toast.success('Signed out');
-    router.push('/');
+    router.push('/login');
     router.refresh();
   }, [router]);
 

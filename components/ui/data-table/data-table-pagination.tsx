@@ -45,10 +45,8 @@ export default function DataTablePagination<TData>({
     pageIndex: number,
     canNavigate: boolean,
   ) => {
-    if (!canNavigate || !table.options.manualPagination) {
-      e.preventDefault();
-      if (!table.options.manualPagination) table.setPageIndex(pageIndex);
-    }
+    e.preventDefault();
+    if (canNavigate) table.setPageIndex(pageIndex);
   };
 
   const currentPage = table.getState().pagination.pageIndex + 1;

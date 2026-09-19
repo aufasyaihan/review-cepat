@@ -25,13 +25,7 @@ vi.mock('@/db', () => {
 });
 
 import { getDb } from '@/db';
-import {
-  assignDevice,
-  getMemberById,
-  listAllMembers,
-  listMembers,
-  unassignDevice,
-} from '@/domains/merchant/server/service';
+import { listAllMembers, listMembers } from '@/domains/merchant/server/service';
 
 type MockFn = ReturnType<typeof vi.fn>;
 const q = (table: 'member' | 'device') => (getDb() as any).query[table];
@@ -241,94 +235,3 @@ describe('listAllMembers', () => {
     expect(members).toEqual([]);
   });
 });
-
-describe('getMemberById', () => {
-  it('returns the member with org fields and device count when found', async () => {
-    q('member').findFirst.mockResolvedValue({
-      id: 'm-sub',
-      organizationId: 'org-1',
-      userId: 'u2',
-      role: 'member',
-      organization: { id: 'org-1', name: 'Org One', slug: 'org-one' },
-      user: { id: 'u2', name: 'Sub', email: 'sub@acme.io' },
-    });
-    q('device').findMany.mockResolvedValue([{ id: 'd1', memberId: 'm-sub' } as never]);
-    selectGroupBy().mockResolvedValue([{ memberId: 'm-sub', cnt: 1 }]);
-
-    const found = await getMemberById('m-sub');
-    expect(found).toMatchObject({
-      id: 'm-sub',
-      organizationId: 'org-1',
-      organizationName: 'Org One',
-      deviceCount: 1,
-    });
-  });
-
-  it('returns null when the member does not exist', async () => {
-    q('member').findFirst.mockResolvedValue(null);
-    const found = await getMemberById('missing');
-    expect(found).toBeNull();
-  });
-});
-
-describe('assignDevice / unassignDevice', () => {
-  it('assignDevice rejects a device outside the organization', async () => {
-    q('device').findFirst.mockResolvedValue(null);
-    await expect(assignDevice('d1', 'm-sub', 'org-1')).rejects.toMatchObject({
-      status: 404,
-      code: 'DEVICE_NOT_FOUND',
-    });
-  });
-
-  it('assignDevice rejects a member outside the organization (WHERE filters it out)', async () => {
-    q('device').findFirst.mockResolvedValue(deviceRowInOrg());
-    q('member').findFirst.mockResolvedValue(null);
-    await expect(assignDevice('d1', 'm-other', 'org-1')).rejects.toThrow(
-      'not found in this organization',
-    );
-  });
-
-  it('assignDevice succeeds when device and member belong to the org', async () => {
-    q('device').findFirst.mockResolvedValue(deviceRowInOrg());
-    q('member').findFirst.mockResolvedValue(memberInOrg());
-    await expect(assignDevice('d1', 'm-sub', 'org-1')).resolves.toBeUndefined();
-  });
-
-  it('unassignDevice succeeds for an org device', async () => {
-    q('device').findFirst.mockResolvedValue(deviceRowInOrg());
-    await expect(unassignDevice('d1', 'org-1')).resolves.toBeUndefined();
-  });
-
-  it('unassignDevice rejects a device outside the organization', async () => {
-    q('device').findFirst.mockResolvedValue(null);
-    await expect(unassignDevice('d1', 'org-1')).rejects.toMatchObject({
-      status: 404,
-      code: 'DEVICE_NOT_FOUND',
-    });
-  });
-});
-
-function deviceRowInOrg() {
-  return {
-    id: 'd1',
-    slug: 'd1',
-    name: 'D',
-    status: 'CLAIMED',
-    organizationId: 'org-1',
-    memberId: null,
-    boundUserId: null,
-    claimCodeHash: 'h',
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-function memberInOrg() {
-  return {
-    id: 'm-sub',
-    organizationId: 'org-1',
-    userId: 'u2',
-    role: 'member',
-    createdAt: now,
-    updatedAt: now,
-  };
-}

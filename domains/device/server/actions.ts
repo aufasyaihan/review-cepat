@@ -2,14 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import {
-  claimDeviceSchema,
   createDeviceSchema,
   renameDeviceSchema,
   transferDeviceSchema,
 } from '@/domains/device/schemas';
 import type { CreateDeviceResult, DeviceSummary } from '@/domains/device/types';
 import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permissions';
-import { claimWithCode } from '@/domains/merchant/server/service';
 import { type ActionResult, fail, ok } from '@/lib/action-result';
 import {
   requireApiMembership,
@@ -23,6 +21,7 @@ import {
   adminReset,
   adminSetDisabled,
   deleteDevice,
+  ownerForgetDevice,
   ownerReset,
   publishVisible,
   renameVisibleDevice,
@@ -32,23 +31,6 @@ import {
 
 function toMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Operation failed';
-}
-
-export async function claimDeviceAction(claimCode: string): Promise<ActionResult<DeviceSummary>> {
-  try {
-    const user = await requireApiPermission('/api/device/claim');
-    const membership = await getActiveOrganization(user.id);
-    if (!membership) return fail('Not part of an organization yet');
-
-    const parsed = claimDeviceSchema.safeParse({ claimCode });
-    if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Invalid claim code');
-    const device = await claimWithCode(user.id, membership, parsed.data.claimCode);
-    revalidatePath('/devices');
-    revalidatePath(`/devices/${device.id}`);
-    return ok(device);
-  } catch (err) {
-    return fail(toMessage(err));
-  }
 }
 
 export async function publishDeviceAction(id: string): Promise<ActionResult<DeviceSummary>> {
@@ -192,6 +174,25 @@ export async function resetDeviceAction(
     const result = await ownerReset(id, membership.organizationId);
     revalidatePath('/devices');
     revalidatePath(`/devices/${id}`);
+    return ok(result);
+  } catch (err) {
+    return fail(toMessage(err));
+  }
+}
+
+/** Owner detaches a device from their org entirely: wipes config, releases it back to UNCLAIMED. */
+export async function forgetDeviceAction(
+  id: string,
+): Promise<ActionResult<{ device: DeviceSummary; claimCode: string }>> {
+  try {
+    await requireApiPermission('/api/device/forget');
+    const user = await requireApiUser(['MERCHANT']);
+    const membership = await getActiveOrganization(user.id);
+    if (!membership || !isOwner(membership)) {
+      return fail('Only an organization owner can forget this device');
+    }
+    const result = await ownerForgetDevice(id, membership.organizationId);
+    revalidatePath('/devices');
     return ok(result);
   } catch (err) {
     return fail(toMessage(err));

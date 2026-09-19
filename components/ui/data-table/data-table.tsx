@@ -63,7 +63,7 @@ export default function DataTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     pageCount,
     manualPagination,
-    onPaginationChange,
+    ...(onPaginationChange !== undefined && { onPaginationChange }),
     state: {
       sorting,
       columnFilters,
@@ -100,7 +100,10 @@ export default function DataTable<TData, TValue>({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className={cn((header.column.columnDef.meta as StickyMeta | undefined)?.sticky && 'sticky right-0 z-10 bg-card')}>
+                  <TableHead
+                    key={header.id}
+                    className={cn((header.column.columnDef.meta as StickyMeta | undefined)?.sticky && 'sticky right-0 z-10 w-[1%] bg-card')}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(header.column.columnDef.header, header.getContext())}
@@ -119,7 +122,10 @@ export default function DataTable<TData, TValue>({
                   className={onRowClick ? 'cursor-pointer' : ''}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className={cn((cell.column.columnDef.meta as StickyMeta | undefined)?.sticky && 'sticky right-0 z-10 bg-card')}>
+                    <TableCell
+                      key={cell.id}
+                      className={cn((cell.column.columnDef.meta as StickyMeta | undefined)?.sticky && 'sticky right-0 z-10 w-[1%] bg-card')}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}

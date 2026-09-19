@@ -1,9 +1,9 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Store, Tag, Users } from 'lucide-react';
+import { BarChart3, Smartphone, Store, Tag, Users } from 'lucide-react';
 import { useState } from 'react';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
 import { SkeletonLoader } from '@/components/common/skeleton-loader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -51,6 +51,24 @@ const EMPTY_OVERVIEW: AnalyticsOverview = {
   dailyScans: [],
   merchantCount: 0,
   userCount: 0,
+  deviceCount: 0,
+  statusCounts: {
+    UNCLAIMED: 0,
+    CLAIMED: 0,
+    PUBLISHED: 0,
+    UNPUBLISHED: 0,
+    DISABLED: 0,
+    DELETED: 0,
+  },
+};
+
+const STATUS_LABELS: Record<keyof AnalyticsOverview['statusCounts'], string> = {
+  UNCLAIMED: 'Unclaimed',
+  CLAIMED: 'Claimed',
+  PUBLISHED: 'Published',
+  UNPUBLISHED: 'Unpublished',
+  DISABLED: 'Disabled',
+  DELETED: 'Deleted',
 };
 
 const dailyChartConfig = {
@@ -62,16 +80,35 @@ const deviceChartConfig = {
 } satisfies ChartConfig;
 
 function AdminAnalytics({ analytics }: { analytics: AnalyticsOverview }) {
-  const dailyChartData = analytics.dailyScans.map((d) => ({ date: d.day, scans: d.scans }));
-  const deviceChartData = analytics.deviceScans.map((d) => ({ name: d.name, scans: d.scans }));
+  const dailyChartData = analytics.dailyScans.map((d) => ({
+    date: d.day,
+    scans: d.scans,
+  }));
+  const deviceChartData = analytics.deviceScans.map((d) => ({
+    name: d.name,
+    scans: d.scans,
+  }));
 
   return (
     <section className="space-y-8">
       <div className="grid auto-rows-min gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total scans" value={analytics.totalScans} icon={BarChart3} />
-        <StatCard label="Published devices" value={analytics.deviceScans.length} icon={Tag} />
+        <StatCard label="Devices" value={analytics.deviceCount} icon={Tag} />
         <StatCard label="Merchants" value={analytics.merchantCount} icon={Store} />
         <StatCard label="Users" value={analytics.userCount} icon={Users} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <h2>Device Statuses</h2>
+        <div className="grid auto-rows-min gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map((status) => (
+            <StatCard
+              key={status}
+              label={STATUS_LABELS[status]}
+              value={analytics.statusCounts[status]}
+              icon={Smartphone}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -85,13 +122,29 @@ function AdminAnalytics({ analytics }: { analytics: AnalyticsOverview }) {
               <Empty label="No scans" hint="No scans match this date range." />
             ) : (
               <ChartContainer config={dailyChartConfig} className="h-[250px] w-full">
-                <BarChart data={dailyChartData}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis dataKey="date" tickLine={false} tickMargin={10} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="scans" fill="var(--color-scans)" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                {analytics.dailyScans.length === 1 ? (
+                  <BarChart data={dailyChartData}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="date" tickLine={false} tickMargin={10} axisLine={false} />
+                    <YAxis tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="scans" fill="var(--color-scans)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                ) : (
+                  <LineChart data={dailyChartData}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="date" tickLine={false} tickMargin={10} axisLine={false} />
+                    <YAxis tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      type="monotone"
+                      dataKey="scans"
+                      stroke="var(--color-scans)"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                )}
               </ChartContainer>
             )}
           </CardContent>

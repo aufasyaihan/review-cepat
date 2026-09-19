@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { useRouter } from 'next/navigation';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SetupClaimForm } from '@/app/(redirect)/[slug]/setup/setup-claim-form';
+import { SetupClaimForm } from '@/app/(redirect)/s/[slug]/setup/setup-claim-form';
 import { setupClaimCodeAction } from '@/domains/device/server/setup-actions';
 
 vi.mock('next/navigation', () => ({
@@ -50,7 +50,7 @@ describe('SetupClaimForm (US1 claim-code entry)', () => {
   it('submits the claim code and navigates to the redirect step on success', async () => {
     vi.mocked(setupClaimCodeAction).mockResolvedValue({
       ok: true,
-      data: { redirectUrl: '/slug-one/setup/redirect?t=tok' },
+      data: { redirectUrl: '/s/slug-one/setup/redirect?t=tok' },
     });
 
     renderForm();
@@ -59,7 +59,7 @@ describe('SetupClaimForm (US1 claim-code entry)', () => {
 
     await waitFor(() => {
       expect(setupClaimCodeAction).toHaveBeenCalledWith('slug-one', { claimCode: 'ABCD1234' });
-      expect(mockReplace).toHaveBeenCalledWith('/slug-one/setup/redirect?t=tok');
+      expect(mockReplace).toHaveBeenCalledWith('/s/slug-one/setup/redirect?t=tok');
     });
   });
 });

@@ -77,7 +77,7 @@ export async function setForDevice(
 }
 
 /**
- * Accountless variant used by /{slug}/setup/redirect (FR-004): no owner/account
+ * Accountless variant used by /s/{slug}/setup/redirect (FR-004): no owner/account
  * is required, but the device must exist and not be disabled, and a valid setup
  * token must have been verified by the caller action.
  */
@@ -150,30 +150,38 @@ export type PlaceSearchResult = {
   googlePlaceId: string;
   name: string;
   formattedAddress: string | null;
-  website: string | null;
 };
 
+/** Places API (New) Text Search — https://developers.google.com/maps/documentation/places/web-service/text-search */
 export async function searchPlaces(query: string): Promise<PlaceSearchResult[]> {
+  if (!query.trim()) return [];
   const key = process.env.GOOGLE_PLACES_API_KEY;
-  if (!key || !query.trim()) return [];
-  const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${encodeURIComponent(key)}`;
-  const res = await fetch(url, { cache: 'no-store' });
+  if (!key) throw new AppError(502, 'PLACES_NOT_CONFIGURED', 'Google Places is not configured');
+
+  const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': key,
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress',
+    },
+    body: JSON.stringify({ textQuery: query }),
+    cache: 'no-store',
+  });
   if (!res.ok) throw new AppError(502, 'PLACES_ERROR', 'Places lookup failed');
   const data = (await res.json()) as {
-    results?: Array<{
-      place_id?: string;
-      name?: string;
-      formatted_address?: string;
-      website?: string;
+    places?: Array<{
+      id?: string;
+      displayName?: { text?: string };
+      formattedAddress?: string;
     }>;
   };
-  return (data.results ?? [])
-    .filter((r) => r.place_id)
-    .map((r) => ({
-      googlePlaceId: r.place_id as string,
-      name: r.name ?? '',
-      formattedAddress: r.formatted_address ?? null,
-      website: r.website ?? null,
+  return (data.places ?? [])
+    .filter((p) => p.id)
+    .map((p) => ({
+      googlePlaceId: p.id as string,
+      name: p.displayName?.text ?? '',
+      formattedAddress: p.formattedAddress ?? null,
     }))
     .slice(0, 20);
 }

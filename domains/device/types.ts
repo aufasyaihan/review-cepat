@@ -20,6 +20,7 @@ export type DestinationDto = {
 };
 
 export type DeviceDetail = DeviceSummary & {
+  organizationId: string | null;
   destinations: DestinationDto[];
 };
 

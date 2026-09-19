@@ -2,15 +2,20 @@ import { randomUUID } from 'node:crypto';
 
 import { and, asc, count, desc, eq, isNotNull, like, ne, or } from 'drizzle-orm';
 
-import { getDb } from '@/db';
+import { type Db, getDb } from '@/db';
 import { account, device, member, merchantProfile, organization, session, user } from '@/db/schema';
 import { claimDeviceSchema } from '@/domains/device/schemas';
 import type { DeviceSummary } from '@/domains/device/types';
 import { type ProfileOutput, profileSchema } from '@/domains/merchant/schemas/profile';
-import type { Membership } from '@/domains/merchant/server/permissions';
+import {
+  getActiveOrganization,
+  isOwner,
+  type Membership,
+} from '@/domains/merchant/server/permissions';
 import { auth } from '@/lib/auth';
 import { hashClaimCode, randomSlug } from '@/lib/codes';
 import { AppError } from '@/lib/errors';
+import { type Paginated, pageParams } from '@/lib/pagination';
 
 type DeviceRow = {
   id: string;
@@ -160,14 +165,7 @@ export async function listOrganizations(): Promise<OrganizationWithDevices[]> {
   }));
 }
 
-export type Paginated<T> = { rows: T[]; total: number; page: number; limit: number };
-
-function pageParams(page?: number, limit?: number): { page: number; limit: number } {
-  return {
-    page: Math.max(1, Math.floor(page ?? 1)),
-    limit: Math.min(100, Math.max(1, Math.floor(limit ?? 10))),
-  };
-}
+export type { Paginated } from '@/lib/pagination';
 
 /** Every platform account (FR-055 + admin parity): org members AND accounts
  * with no organization yet (platform ADMINs, freshly-seeded MERCHANTs). A
@@ -418,6 +416,48 @@ export async function claimWithCode(
   });
 }
 
+/**
+ * Runs immediately after a claim code validates (device status CLAIMED,
+ * no account bound yet). Decides where the caller goes next: bind
+ * directly into an org if one is already attached to the device or the
+ * caller is a non-owner member, or send an owner to the resell/claim
+ * decision when the device has no org yet. When the owner is sent to
+ * `/option`, the recently-validated claim-code proof token (when present)
+ * is appended as `?t=<token>` so the page re-validates instead of
+ * self-minting one.
+ */
+export async function resolvePostClaim(
+  deviceId: string,
+  userId: string,
+  token?: string,
+): Promise<{ redirectUrl: string }> {
+  const db = getDb();
+  const row = await db.query.device.findFirst({ where: eq(device.id, deviceId) });
+  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
+
+  const membership = await getActiveOrganization(userId);
+  if (!membership) {
+    throw new AppError(409, 'NO_ORGANIZATION', 'You are not part of an organization yet');
+  }
+
+  if (row.organizationId || !isOwner(membership)) {
+    const organizationId = row.organizationId ?? membership.organizationId;
+    await db
+      .update(device)
+      .set({
+        organizationId,
+        memberId: membership.id,
+        boundUserId: userId,
+        status: 'CLAIMED',
+        updatedAt: new Date(),
+      })
+      .where(eq(device.id, deviceId));
+    return { redirectUrl: '/dashboard' };
+  }
+
+  return { redirectUrl: `/s/${row.slug}/option${token ? `?t=${token}` : ''}` };
+}
+
 // ---------------------------------------------------------------------------
 // Member management (FR-021/022/027, US4)
 // ---------------------------------------------------------------------------
@@ -498,17 +538,6 @@ export async function listAllMembers(): Promise<MemberWithUser[]> {
   return sortByOrgThenOwnerFirst(
     rows.map((r) => toMemberWithUser(r, countByMember.get(r.id) ?? 0)),
   );
-}
-
-/** Admin view: a single member in any organization, for the detail page. */
-export async function getMemberById(memberId: string): Promise<MemberWithUser | null> {
-  const row = await getDb().query.member.findFirst({
-    where: eq(member.id, memberId),
-    with: { user: true, organization: true },
-  });
-  if (!row) return null;
-  const countByMember = await memberDeviceCounts();
-  return toMemberWithUser(row, countByMember.get(row.id) ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -717,7 +746,7 @@ export async function deactivateUser(memberId: string): Promise<void> {
 // Admin organization (merchant) CRUD (FR-054, Phase 17)
 // ---------------------------------------------------------------------------
 
-function slugifyName(name: string): string {
+export function slugifyName(name: string): string {
   const slug = name
     .trim()
     .toLowerCase()
@@ -728,6 +757,29 @@ function slugifyName(name: string): string {
 }
 
 /**
+ * Finds a slug for `trimmedName` that isn't already taken, retrying with a
+ * random suffix on collision. Throws rather than silently proceeding with a
+ * possibly-still-colliding slug if every attempt collides.
+ */
+async function uniqueOrgSlug(db: Db, trimmedName: string): Promise<string> {
+  let slug = slugifyName(trimmedName);
+  for (let i = 0; i < 5; i++) {
+    const existing = await db.query.organization.findFirst({ where: eq(organization.slug, slug) });
+    if (!existing) return slug;
+    slug = `${slugifyName(trimmedName)}-${randomSlug(4)}`;
+  }
+  const existing = await db.query.organization.findFirst({ where: eq(organization.slug, slug) });
+  if (existing) {
+    throw new AppError(
+      409,
+      'SLUG_EXHAUSTED',
+      'Could not generate a unique merchant slug — try a different name',
+    );
+  }
+  return slug;
+}
+
+/**
  * Creates only the org shell — business name, NO owner (FR-054). Created
  * directly because Better Auth's createOrganization always makes the caller
  * the owner; the admin is not a member of the new merchant.
@@ -735,14 +787,7 @@ function slugifyName(name: string): string {
 export async function createOrganizationShell(name: string): Promise<OrganizationWithDevices> {
   const db = getDb();
   const trimmed = name.trim();
-  let slug = slugifyName(trimmed);
-  for (let i = 0; i < 5; i++) {
-    const existing = await db.query.organization.findFirst({
-      where: eq(organization.slug, slug),
-    });
-    if (!existing) break;
-    slug = `${slugifyName(trimmed)}-${randomSlug(4)}`;
-  }
+  const slug = await uniqueOrgSlug(db, trimmed);
   await db.insert(organization).values({
     id: randomUUID(),
     name: trimmed,
@@ -756,6 +801,25 @@ export async function createOrganizationShell(name: string): Promise<Organizatio
   });
   if (!created) throw new AppError(500, 'ORG_CREATE_FAILED', 'Could not create the merchant');
   return { id: created.id, name: created.name, slug: created.slug, deviceCount: 0 };
+}
+
+/**
+ * Registration-time org creation: the new user becomes the org's owner via
+ * better-auth's organization plugin (unlike createOrganizationShell, which
+ * makes an ownerless shell for admin-assigned merchants).
+ */
+export async function createOrganizationForUser(
+  userId: string,
+  businessName: string,
+): Promise<{ organizationId: string }> {
+  const db = getDb();
+  const trimmed = businessName.trim();
+  const slug = await uniqueOrgSlug(db, trimmed);
+  const created = await auth.api.createOrganization({
+    body: { name: trimmed, slug, userId },
+  });
+  if (!created) throw new AppError(500, 'ORG_CREATE_FAILED', 'Could not create the organization');
+  return { organizationId: created.id };
 }
 
 /** Assigns an owner to a merchant from an existing account (DB-level, admin is not an org member). */
@@ -788,44 +852,6 @@ export async function deleteOrganizationAction(organizationId: string): Promise<
   });
   if (!org) throw new AppError(404, 'ORGANIZATION_NOT_FOUND', 'Merchant not found');
   await getDb().delete(organization).where(eq(organization.id, organizationId));
-}
-
-async function assertMemberInOrg(memberId: string, organizationId: string) {
-  const row = await getDb().query.member.findFirst({
-    where: and(eq(member.id, memberId), eq(member.organizationId, organizationId)),
-  });
-  if (!row) throw new AppError(404, 'MEMBER_NOT_FOUND', 'Member not found in this organization');
-  return row;
-}
-
-async function assertDeviceInOrg(deviceId: string, organizationId: string) {
-  const row = await getDb().query.device.findFirst({
-    where: and(eq(device.id, deviceId), eq(device.organizationId, organizationId)),
-  });
-  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found in this organization');
-  return row;
-}
-
-/** FR-027: assign a device to a sub-merchant member of the same organization. */
-export async function assignDevice(
-  deviceId: string,
-  memberId: string,
-  organizationId: string,
-): Promise<void> {
-  const db = getDb();
-  await assertDeviceInOrg(deviceId, organizationId);
-  await assertMemberInOrg(memberId, organizationId);
-  await db.update(device).set({ memberId, updatedAt: new Date() }).where(eq(device.id, deviceId));
-}
-
-/** FR-027: remove a member assignment; the org owner still sees the device. */
-export async function unassignDevice(deviceId: string, organizationId: string): Promise<void> {
-  const db = getDb();
-  await assertDeviceInOrg(deviceId, organizationId);
-  await db
-    .update(device)
-    .set({ memberId: null, updatedAt: new Date() })
-    .where(eq(device.id, deviceId));
 }
 
 /**

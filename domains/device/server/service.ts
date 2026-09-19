@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, like, ne } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { destination, device, merchantProfile, organization, scanEvent } from '@/db/schema';
@@ -18,6 +18,7 @@ import type {
 } from '@/domains/device/types';
 import { generateClaimCode, hashClaimCode, isValidSlug, randomSlug } from '@/lib/codes';
 import { AppError } from '@/lib/errors';
+import { type Paginated, pageParams } from '@/lib/pagination';
 
 function toSummmary(row: {
   id: string;
@@ -94,7 +95,11 @@ export async function getForOwner(id: string, ownerId: number): Promise<DeviceDe
     where: eq(destination.deviceId, id),
     orderBy: asc(destination.position),
   });
-  return { ...toSummmary(row), destinations: destinations.map(toDestinationDto) };
+  return {
+    ...toSummmary(row),
+    organizationId: row.organizationId ?? null,
+    destinations: destinations.map(toDestinationDto),
+  };
 }
 
 export async function getById(id: string): Promise<DeviceDetail | null> {
@@ -105,7 +110,11 @@ export async function getById(id: string): Promise<DeviceDetail | null> {
     where: eq(destination.deviceId, id),
     orderBy: asc(destination.position),
   });
-  return { ...toSummmary(row), destinations: destinations.map(toDestinationDto) };
+  return {
+    ...toSummmary(row),
+    organizationId: row.organizationId ?? null,
+    destinations: destinations.map(toDestinationDto),
+  };
 }
 
 export async function getBySlug(slug: string): Promise<DeviceDetail | null> {
@@ -142,6 +151,30 @@ export async function listVisible(membership: MembershipLike): Promise<DeviceSum
   return rows.map(toSummmary);
 }
 
+/** Server-paginated variant of {@link listVisible} for table UIs (name search, page/limit). */
+export async function listVisiblePaginated(
+  membership: MembershipLike,
+  opts: { q?: string; page?: number; limit?: number } = {},
+): Promise<Paginated<DeviceSummary>> {
+  const db = getDb();
+  const { page, limit } = pageParams(opts.page, opts.limit);
+  const where = and(
+    orgAccessWhere(membership),
+    ne(device.status, 'DELETED'),
+    ...(opts.q ? [like(device.name, `%${opts.q.trim()}%`)] : []),
+  );
+
+  const rows = await db.query.device.findMany({
+    where,
+    orderBy: desc(device.createdAt),
+    limit,
+    offset: (page - 1) * limit,
+  });
+  const [{ cnt }] = await db.select({ cnt: count() }).from(device).where(where);
+
+  return { rows: rows.map(toSummmary), total: cnt, page, limit };
+}
+
 export async function getVisible(id: string, membership: MembershipLike): Promise<DeviceDetail> {
   const db = getDb();
   const row = await db.query.device.findFirst({
@@ -152,7 +185,11 @@ export async function getVisible(id: string, membership: MembershipLike): Promis
     where: eq(destination.deviceId, id),
     orderBy: asc(destination.position),
   });
-  return { ...toSummmary(row), destinations: destinations.map(toDestinationDto) };
+  return {
+    ...toSummmary(row),
+    organizationId: row.organizationId ?? null,
+    destinations: destinations.map(toDestinationDto),
+  };
 }
 
 export async function publishVisible(
@@ -263,10 +300,9 @@ export async function claimAccountless(
     throw new AppError(409, 'ALREADY_SET_UP', 'This device is already set up and configured');
   }
 
-  await db
-    .update(device)
-    .set({ status: 'CLAIMED', updatedAt: new Date() })
-    .where(eq(device.id, row.id));
+  // Device only becomes CLAIMED once destinations are actually saved
+  // (setForDeviceSetup); validating the code alone must not claim it, so an
+  // abandoned setup leaves the code usable again.
   return { id: row.id, slug: row.slug, name: row.name };
 }
 
@@ -377,6 +413,28 @@ export async function adminList(): Promise<DeviceSummary[]> {
   return rows.map(toSummmary);
 }
 
+/** Server-paginated variant of {@link adminList} for the admin device table (name search, page/limit). */
+export async function adminListPaginated(
+  opts: { q?: string; page?: number; limit?: number } = {},
+): Promise<Paginated<DeviceSummary>> {
+  const db = getDb();
+  const { page, limit } = pageParams(opts.page, opts.limit);
+  const where = and(
+    ne(device.status, 'DELETED'),
+    ...(opts.q ? [like(device.name, `%${opts.q.trim()}%`)] : []),
+  );
+
+  const rows = await db.query.device.findMany({
+    where,
+    orderBy: desc(device.createdAt),
+    limit,
+    offset: (page - 1) * limit,
+  });
+  const [{ cnt }] = await db.select({ cnt: count() }).from(device).where(where);
+
+  return { rows: rows.map(toSummmary), total: cnt, page, limit };
+}
+
 export async function adminSetDisabled(id: string, disabled: boolean): Promise<DeviceSummary> {
   const db = getDb();
   const row = await findDevice(id);
@@ -454,6 +512,67 @@ export async function adminReset(id: string): Promise<{
 }> {
   const db = getDb();
   const row = await findDevice(id);
+  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
+
+  const now = new Date();
+  const claimCode = generateClaimCode();
+  await clearDeviceConfig(id, now);
+  await db
+    .update(device)
+    .set({
+      status: 'UNCLAIMED',
+      organizationId: null,
+      claimCodeHash: hashClaimCode(claimCode),
+      updatedAt: now,
+    })
+    .where(eq(device.id, id));
+  return { device: toSummmary(await readDeviceOrFail(id)), claimCode };
+}
+
+/**
+ * Owner-triggered equivalent of adminReset: same clear-and-detach behavior,
+ * but scoped to devices the caller's organization actually owns (unlike
+ * adminReset, which trusts the platform admin caller). Used by the
+ * dashboard's "Forgot device" action and /option's "Resell" choice.
+ */
+export async function ownerForgetDevice(
+  id: string,
+  organizationId: string,
+): Promise<{ device: DeviceSummary; claimCode: string }> {
+  const db = getDb();
+  const owned = await db.query.device.findFirst({
+    where: and(eq(device.id, id), eq(device.organizationId, organizationId)),
+  });
+  if (!owned) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found in this organization');
+
+  const now = new Date();
+  const claimCode = generateClaimCode();
+  await clearDeviceConfig(id, now);
+  await db
+    .update(device)
+    .set({
+      status: 'UNCLAIMED',
+      organizationId: null,
+      claimCodeHash: hashClaimCode(claimCode),
+      updatedAt: now,
+    })
+    .where(eq(device.id, id));
+  return { device: toSummmary(await readDeviceOrFail(id)), claimCode };
+}
+
+/**
+ * Owner-triggered reset for a device with no organization yet (the /option
+ * "Resell" choice, before the caller has claimed it). Unlike adminReset,
+ * this does not trust the caller as a platform admin — it only asserts the
+ * device is genuinely still org-less before resetting it.
+ */
+export async function ownerResetOrgLessDevice(
+  id: string,
+): Promise<{ device: DeviceSummary; claimCode: string }> {
+  const db = getDb();
+  const row = await db.query.device.findFirst({
+    where: and(eq(device.id, id), isNull(device.organizationId)),
+  });
   if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
 
   const now = new Date();

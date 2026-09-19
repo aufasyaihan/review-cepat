@@ -11,6 +11,8 @@ vi.mock('@/db', () => ({
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
+vi.mock('next/headers', () => ({ headers: vi.fn().mockResolvedValue(new Headers()) }));
+
 vi.mock('@/lib/auth', () => ({
   auth: {
     api: {
@@ -23,7 +25,12 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn() } }));
 
+vi.mock('@/domains/merchant/server/service', () => ({
+  createOrganizationForUser: vi.fn(),
+}));
+
 import { signInAction, signOutAction, signUpAction } from '@/domains/auth/server/actions';
+import { createOrganizationForUser } from '@/domains/merchant/server/service';
 import { auth } from '@/lib/auth';
 
 const signInEmail = () => vi.mocked(auth.api.signInEmail);
@@ -79,33 +86,34 @@ describe('signUpAction', () => {
     expect(signUpEmail()).not.toHaveBeenCalled();
   });
 
-  it('creates user, promotes role, inserts profile when businessName present', async () => {
-    signUpEmail().mockResolvedValueOnce({ user: { id: 'u1' } } as never);
-
+  it('rejects registration missing businessName or phone', async () => {
     const result = await signUpAction({
-      name: 'John',
-      email: 'j@b.com',
-      password: '12345678',
-      businessName: 'Acme',
-    });
-
-    expect(result).toEqual({ ok: true, data: { role: 'MERCHANT' } });
-    expect(dbMocks.update).toHaveBeenCalled();
-    expect(dbMocks.insert).toHaveBeenCalled();
+      name: 'Ada',
+      email: 'ada@example.com',
+      password: 'password123',
+      businessName: '',
+      phone: '',
+    } as never);
+    expect(result.ok).toBe(false);
+    expect(signUpEmail()).not.toHaveBeenCalled();
   });
 
-  it('skips merchantProfile insert when businessName omitted', async () => {
-    signUpEmail().mockResolvedValueOnce({ user: { id: 'u2' } } as never);
+  it('creates the account, profile, and an organization the user owns', async () => {
+    signUpEmail().mockResolvedValueOnce({ user: { id: 'user-1' } } as never);
+    vi.mocked(createOrganizationForUser).mockResolvedValue({ organizationId: 'org-1' });
 
     const result = await signUpAction({
-      name: 'John',
-      email: 'j@b.com',
-      password: '12345678',
+      name: 'Ada',
+      email: 'ada@example.com',
+      password: 'password123',
+      businessName: 'Ada Co',
+      phone: '+15551234567',
     });
 
-    expect(result).toEqual({ ok: true, data: { role: 'MERCHANT' } });
+    expect(result.ok).toBe(true);
     expect(dbMocks.update).toHaveBeenCalled();
-    expect(dbMocks.insert).not.toHaveBeenCalled();
+    expect(dbMocks.insert).toHaveBeenCalled();
+    expect(createOrganizationForUser).toHaveBeenCalledWith('user-1', 'Ada Co');
   });
 
   it('fails when created user is falsy', async () => {
@@ -114,6 +122,8 @@ describe('signUpAction', () => {
       name: 'John',
       email: 'j@b.com',
       password: '12345678',
+      businessName: 'Acme',
+      phone: '+15551234567',
     });
     expect(result).toEqual({ ok: false, error: 'Registration failed' });
   });
@@ -124,6 +134,8 @@ describe('signUpAction', () => {
       name: 'John',
       email: 'j@b.com',
       password: '12345678',
+      businessName: 'Acme',
+      phone: '+15551234567',
     });
     expect(result).toEqual({ ok: false, error: 'Registration failed' });
   });
@@ -134,6 +146,8 @@ describe('signUpAction', () => {
       name: 'John',
       email: 'j@b.com',
       password: '12345678',
+      businessName: 'Acme',
+      phone: '+15551234567',
     });
     expect(result).toEqual({ ok: false, error: 'email taken' });
   });

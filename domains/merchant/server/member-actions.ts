@@ -4,13 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { getActiveOrganization, isOwner } from '@/domains/merchant/server/permissions';
-import {
-  assignDevice,
-  createUser,
-  deactivateUser,
-  unassignDevice,
-  updateUser,
-} from '@/domains/merchant/server/service';
+import { createUser, deactivateUser, updateUser } from '@/domains/merchant/server/service';
 import { type ActionResult, fail, ok } from '@/lib/action-result';
 import { auth } from '@/lib/auth';
 import { requireApiPermission, type SessionUser } from '@/lib/session';
@@ -132,55 +126,5 @@ export async function deleteUserAction(memberId: string): Promise<ActionResult<v
     return ok(undefined);
   } catch (err) {
     return fail(err instanceof Error ? err.message : 'Could not delete user');
-  }
-}
-
-/** Owner or admin assigns a device to a sub-merchant member (FR-027). */
-export async function assignDeviceAction(
-  deviceId: string,
-  memberId: string,
-  organizationId?: string,
-): Promise<ActionResult<void>> {
-  const user = await requireApiPermission('/api/member/assign');
-  const orgId = await resolveOrganizationId(user, organizationId);
-  if (!orgId) {
-    return fail(
-      user.role === 'ADMIN'
-        ? 'Select an organization to assign devices in'
-        : 'Only an organization owner can assign devices',
-    );
-  }
-
-  try {
-    await assignDevice(deviceId, memberId, orgId);
-    revalidatePath('/devices');
-    revalidatePath('/user-management');
-    return ok(undefined);
-  } catch (err) {
-    return fail(err instanceof Error ? err.message : 'Could not assign device');
-  }
-}
-
-export async function unassignDeviceAction(
-  deviceId: string,
-  organizationId?: string,
-): Promise<ActionResult<void>> {
-  const user = await requireApiPermission('/api/member/unassign');
-  const orgId = await resolveOrganizationId(user, organizationId);
-  if (!orgId) {
-    return fail(
-      user.role === 'ADMIN'
-        ? 'Select an organization to unassign devices in'
-        : 'Only an organization owner can unassign devices',
-    );
-  }
-
-  try {
-    await unassignDevice(deviceId, orgId);
-    revalidatePath('/devices');
-    revalidatePath('/user-management');
-    return ok(undefined);
-  } catch (err) {
-    return fail(err instanceof Error ? err.message : 'Could not unassign device');
   }
 }

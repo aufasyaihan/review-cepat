@@ -5,10 +5,12 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
 import { setupClaimCodeAction } from '@/domains/device/server/setup-actions';
 import { useAction } from '@/hooks/use-action';
+
+const CLAIM_CODE_LENGTH = 8;
 
 export function SetupClaimForm({ slug }: { slug: string }) {
   const router = useRouter();
@@ -20,10 +22,12 @@ export function SetupClaimForm({ slug }: { slug: string }) {
   });
 
   return (
-    <Card>
+    <Card className="shadow-lg">
       <CardHeader>
-        <CardTitle className="text-base">Claim code</CardTitle>
-        <CardDescription>Enter the code printed with your device to begin setup.</CardDescription>
+        <CardTitle className="text-base text-center">Set up your device</CardTitle>
+        <CardDescription className="text-center">
+          Enter the code printed with your device to begin setup.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -33,20 +37,28 @@ export function SetupClaimForm({ slug }: { slug: string }) {
             submit.mutate({ claimCode: code });
           }}
         >
-          <div className="space-y-2">
-            <Label htmlFor="claim-code">Claim code</Label>
-            <Input
+          <div className="flex flex-col gap-2 justify-center items-center">
+            <Label htmlFor="claim-code" className="text-center">
+              Claim code
+            </Label>
+            <InputOTP
               id="claim-code"
+              maxLength={CLAIM_CODE_LENGTH}
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="e.g. ABCD1234"
+              onChange={(value) => setCode(value.toUpperCase())}
               autoComplete="off"
-              spellCheck={false}
-            />
+            >
+              <InputOTPGroup className="*:data-[slot=input-otp-slot]:h-12 *:data-[slot=input-otp-slot]:w-11 *:data-[slot=input-otp-slot]:text-xl">
+                {Array.from({ length: CLAIM_CODE_LENGTH }, (_, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length slot layout, index is position identity
+                  <InputOTPSlot key={i} index={i} />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
           </div>
           <Button
             type="submit"
-            disabled={submit.isPending || code.trim().length === 0}
+            disabled={submit.isPending || code.length !== CLAIM_CODE_LENGTH}
             className="w-full"
           >
             {submit.isPending ? 'Checking…' : 'Continue'}

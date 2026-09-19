@@ -2,13 +2,14 @@
 
 import { useForm } from '@tanstack/react-form';
 import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signUpAction } from '@/domains/auth/server/actions';
+import { linkDeviceAfterAuthAction } from '@/domains/device/server/link-actions';
 import { useAction } from '@/hooks/use-action';
 
 const container = {
@@ -22,19 +23,31 @@ const item = {
 
 export function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const deviceToken = searchParams.get('d');
   const signUp = useAction(signUpAction, {
     successMsg: 'Account created',
-    onSuccess: () => router.push('/dashboard'),
+    onSuccess: async () => {
+      if (deviceToken) {
+        const linked = await linkDeviceAfterAuthAction(deviceToken);
+        if (linked.ok) {
+          router.push(linked.data.redirectUrl);
+          return;
+        }
+      }
+      router.push('/dashboard');
+    },
   });
 
   const form = useForm({
-    defaultValues: { name: '', email: '', password: '', businessName: '' },
+    defaultValues: { name: '', email: '', password: '', businessName: '', phone: '' },
     onSubmit: ({ value }) =>
       signUp.mutate({
         name: value.name,
         email: value.email,
         password: value.password,
-        businessName: value.businessName || undefined,
+        businessName: value.businessName,
+        phone: value.phone,
       }),
   });
 
@@ -102,9 +115,24 @@ export function RegisterForm() {
               <form.Field name="businessName">
                 {(field) => (
                   <motion.div variants={item} className="space-y-2">
-                    <Label htmlFor="businessName">Business name (optional)</Label>
+                    <Label htmlFor="businessName">Business name</Label>
                     <Input
                       id="businessName"
+                      required
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </motion.div>
+                )}
+              </form.Field>
+              <form.Field name="phone">
+                {(field) => (
+                  <motion.div variants={item} className="space-y-2">
+                    <Label htmlFor="phone">Phone number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      required
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                     />

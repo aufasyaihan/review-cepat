@@ -2,6 +2,7 @@
 
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { getDb } from '@/db';
 import { merchantProfile, user } from '@/db/schema';
 import {
@@ -10,6 +11,7 @@ import {
   signInSchema,
   signUpSchema,
 } from '@/domains/auth/schemas';
+import { createOrganizationForUser } from '@/domains/merchant/server/service';
 import { type ActionResult, fail, ok } from '@/lib/action-result';
 import { auth, type Role } from '@/lib/auth';
 import { logger } from '@/lib/logger';
@@ -37,7 +39,8 @@ export async function signInAction(input: SignInInput): Promise<ActionResult<Aut
   }
 }
 
-/** Server Action registration: creates the user, promotes to MERCHANT, adds profile. */
+/** Server Action registration: creates the user, promotes to MERCHANT, adds
+ * profile, and creates an organization the user owns. */
 export async function signUpAction(input: SignUpInput): Promise<ActionResult<AuthResult>> {
   const parsed = signUpSchema.safeParse(input);
   if (!parsed.success) {
@@ -60,16 +63,16 @@ export async function signUpAction(input: SignUpInput): Promise<ActionResult<Aut
       .set({ role: 'MERCHANT', emailVerified: true })
       .where(eq(user.id, created.id));
 
-    if (parsed.data.businessName) {
-      await db.insert(merchantProfile).values({
-        userId: created.id,
-        businessName: parsed.data.businessName,
-        phone: null,
-        country: null,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
+    await db.insert(merchantProfile).values({
+      userId: created.id,
+      businessName: parsed.data.businessName,
+      phone: parsed.data.phone,
+      country: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await createOrganizationForUser(created.id, parsed.data.businessName);
 
     revalidatePath('/', 'layout');
     return ok({ role: 'MERCHANT' });
@@ -81,10 +84,11 @@ export async function signUpAction(input: SignUpInput): Promise<ActionResult<Aut
 
 export async function signOutAction(): Promise<ActionResult<void>> {
   try {
-    await auth.api.signOut();
+    await auth.api.signOut({ headers: await headers() });
     revalidatePath('/', 'layout');
     return ok(undefined);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, 'sign out failed');
     return fail('Sign out failed');
   }
 }

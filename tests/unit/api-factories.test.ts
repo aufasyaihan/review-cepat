@@ -32,12 +32,6 @@ import { scanQueries } from '@/domains/scan/api/queries';
 
 type Call = [string, RequestInit];
 
-async function callAndCapture(promise: Promise<unknown>): Promise<Call> {
-  fetchMock.mockResolvedValueOnce(okJson({ ok: true }));
-  await promise;
-  return fetchMock.mock.calls[0] as Call;
-}
-
 describe('api factories', () => {
   describe('merchantQueries.profile', () => {
     it('issues GET /api/merchant/profile', async () => {
@@ -155,12 +149,12 @@ describe('api factories', () => {
 
   describe('analyticsQueries.breakdown', () => {
     it('issues GET /api/analytics/breakdown with deviceId + dimension', async () => {
-      const { queryKey, queryFn } = analyticsQueries.breakdown('dev-1', 'destination');
-      expect(queryKey).toEqual(['analytics', 'breakdown', 'dev-1', 'destination']);
+      const { queryKey, queryFn } = analyticsQueries.breakdown('dev-1', 'referrer');
+      expect(queryKey).toEqual(['analytics', 'breakdown', 'dev-1', 'referrer']);
       fetchMock.mockResolvedValueOnce(okJson({ rows: [] }));
       await queryFn();
       const [url] = fetchMock.mock.calls[0] as Call;
-      expect(url).toBe('/api/analytics/breakdown?deviceId=dev-1&dimension=destination');
+      expect(url).toBe('/api/analytics/breakdown?deviceId=dev-1&dimension=referrer');
     });
   });
 

@@ -2,6 +2,7 @@ import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { device, organization, scanEvent, user as userTable } from '@/db/schema';
+import { DEVICE_STATUS, type DeviceStatus } from '@/domains/device/constants';
 import { getActiveOrganization } from '@/domains/merchant/server/permissions';
 import { AppError } from '@/lib/errors';
 import type { SessionUser } from '@/lib/session';
@@ -12,7 +13,19 @@ export type AnalyticsOverview = {
   dailyScans: Array<{ day: string; scans: number }>;
   merchantCount: number;
   userCount: number;
+  deviceCount: number;
+  statusCounts: Record<DeviceStatus, number>;
 };
+
+function emptyStatusCounts(): Record<DeviceStatus, number> {
+  return Object.fromEntries(DEVICE_STATUS.map((s) => [s, 0])) as Record<DeviceStatus, number>;
+}
+
+function countByStatus(devices: Array<{ status: DeviceStatus }>): Record<DeviceStatus, number> {
+  const counts = emptyStatusCounts();
+  for (const d of devices) counts[d.status] = (counts[d.status] ?? 0) + 1;
+  return counts;
+}
 
 export type AnalyticsBreakdown = Array<{ value: string; scans: number }>;
 
@@ -46,7 +59,7 @@ function windowWhere(deviceIds: string[], window: OverviewWindow) {
 async function aggregate(
   db: ReturnType<typeof getDb>,
   ids: string[],
-  allDevices: Array<{ id: string; slug: string; name: string }>,
+  allDevices: Array<{ id: string; slug: string; name: string; status: DeviceStatus }>,
   window: OverviewWindow,
   counts?: { merchantCount: number; userCount: number },
 ): Promise<AnalyticsOverview> {
@@ -57,6 +70,8 @@ async function aggregate(
       dailyScans: [],
       merchantCount: counts?.merchantCount ?? 0,
       userCount: counts?.userCount ?? 0,
+      deviceCount: allDevices.length,
+      statusCounts: countByStatus(allDevices),
     };
   }
 
@@ -90,6 +105,8 @@ async function aggregate(
     dailyScans: daily.map((r) => ({ day: r.day, scans: Number(r.cnt) })),
     merchantCount: counts?.merchantCount ?? 0,
     userCount: counts?.userCount ?? 0,
+    deviceCount: allDevices.length,
+    statusCounts: countByStatus(allDevices),
   };
 }
 
@@ -100,10 +117,10 @@ export async function overview(
 ): Promise<AnalyticsOverview> {
   const membership = await requireOwnerMembership(userId);
   const db = getDb();
-  const owned = await db.query.device.findMany({
+  const owned = (await db.query.device.findMany({
     where: eq(device.organizationId, membership.organizationId),
-    columns: { id: true, slug: true, name: true },
-  });
+    columns: { id: true, slug: true, name: true, status: true },
+  })) as Array<{ id: string; slug: string; name: string; status: DeviceStatus }>;
   return aggregate(
     db,
     owned.map((d) => d.id),
@@ -123,8 +140,8 @@ export async function adminOverview(
   }
   const db = getDb();
   const allDevices = (await db.query.device.findMany({
-    columns: { id: true, slug: true, name: true },
-  })) as Array<{ id: string; slug: string; name: string }>;
+    columns: { id: true, slug: true, name: true, status: true },
+  })) as Array<{ id: string; slug: string; name: string; status: DeviceStatus }>;
 
   const [{ cnt: merchantCount }] = await db.select({ cnt: count() }).from(organization);
   const [{ cnt: userCount }] = await db.select({ cnt: count() }).from(userTable);

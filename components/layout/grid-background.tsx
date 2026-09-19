@@ -1,8 +1,13 @@
+import { cn } from 'cn';
+
 export function GridBackground({ className = '' }: { className?: string }) {
   return (
     <div
       aria-hidden
-      className={`pointer-events-none absolute inset-0 -z-10 opacity-[0.05] ${className}`}
+      className={cn(
+        'pointer-events-none absolute inset-0 -z-10 opacity-[0.20] dark:opacity-[0.1]',
+        className,
+      )}
       style={{
         backgroundImage:
           'linear-gradient(to right, var(--foreground) 1px, transparent 1px), linear-gradient(to bottom, var(--foreground) 1px, transparent 1px)',
