@@ -2,7 +2,7 @@
 
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Copy } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -47,7 +47,10 @@ import {
 import type { DeviceSummary } from '@/domains/device/types';
 import type { OrganizationWithDevices } from '@/domains/merchant/server/service';
 import { useAction } from '@/hooks/use-action';
+import useCopy from '@/hooks/use-copy';
 import { EditDeviceDialog } from './edit-device-dialog';
+
+const baseUrl = `${window.location.protocol}//${window.location.host}`;
 
 export function AdminDevicesClient({
   organizations,
@@ -60,6 +63,7 @@ export function AdminDevicesClient({
   const [pendingReset, setPendingReset] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [pendingDisable, setPendingDisable] = useState<string | null>(null);
+  const { copiedText, isCopied, copyToClipboard } = useCopy();
 
   const disable = useAction((id: string) => setDeviceDisabledAction(id, true), {
     successMsg: 'Device disabled',
@@ -88,20 +92,23 @@ export function AdminDevicesClient({
     },
     {
       accessorKey: 'slug',
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Slug" />,
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Url" />,
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          <code className="text-xs text-muted-foreground">/s/{row.original.slug}</code>
-          <button
+          <code className="text-xs text-muted-foreground">
+            {baseUrl}/s/{row.original.slug}
+          </code>
+          <Button
             type="button"
-            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/s/${row.original.slug}`);
-              toast.success('Link copied', { description: `/s/${row.original.slug}` });
-            }}
+            variant="ghost"
+            onClick={() => copyToClipboard(`${baseUrl}/s/${row.original.slug}`)}
           >
-            <Copy className="h-3 w-3" />
-          </button>
+            {copiedText === `${baseUrl}/s/${row.original.slug}` ? (
+              <Check className="size-4" />
+            ) : (
+              <Copy className="size-4" />
+            )}
+          </Button>
         </div>
       ),
     },
@@ -142,7 +149,11 @@ export function AdminDevicesClient({
         onClick: () => setPendingDisable(d.id),
       },
       { label: 'Reset', onClick: () => setPendingReset(d.id) },
-      { label: 'Delete', variant: 'destructive', onClick: () => setPendingDelete(d.id) },
+      {
+        label: 'Delete',
+        variant: 'destructive',
+        onClick: () => setPendingDelete(d.id),
+      },
     ]),
   ];
 
@@ -318,7 +329,11 @@ function CreateDeviceDialog({
 }) {
   const [name, setName] = useState('');
   const [orgId, setOrgId] = useState('');
-  const [result, setResult] = useState<{ slug: string; claimCode: string } | null>(null);
+  const [result, setResult] = useState<{
+    slug: string;
+    claimCode: string;
+  } | null>(null);
+  const { isCopied, copyToClipboard } = useCopy();
 
   const create = useAction(
     (args: { name: string; organizationId?: string }) =>
@@ -330,18 +345,17 @@ function CreateDeviceDialog({
     },
   );
 
+  const handleOpenChange = (next: boolean) => {
+    if (!next) {
+      setResult(null);
+      setName('');
+      setOrgId('');
+    }
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) {
-          setResult(null);
-          setName('');
-          setOrgId('');
-        }
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         {result ? (
           <div className="mt-2 space-y-4" data-testid="new-device-result">
@@ -351,12 +365,25 @@ function CreateDeviceDialog({
                 Public URL: <code className="rounded bg-muted px-1">/s/{result.slug}</code>
               </DialogDescription>
             </DialogHeader>
-            <p className="text-sm">
-              One-time claim code (shown once, distribute with the device):{' '}
-              <code className="rounded bg-muted px-1 font-mono text-base">{result.claimCode}</code>
-            </p>
+            <div className="flex flex-col gap-2 text-sm">
+              <p>One-time claim code (shown once, distribute with the device):</p>
+              <span className="relative">
+                <Input disabled value={result.claimCode} className="w-full pr-10" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute inset-y-0 right-1 my-auto"
+                  onClick={() => copyToClipboard(result.claimCode)}
+                  disabled={isCopied}
+                >
+                  {isCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </span>
+            </div>
             <DialogFooter>
-              <Button onClick={() => onOpenChange(false)}>Done</Button>
+              <Button onClick={() => handleOpenChange(false)} disabled={!isCopied}>
+                Done
+              </Button>
             </DialogFooter>
           </div>
         ) : (
@@ -405,7 +432,8 @@ function CreateDeviceDialog({
                   <SelectItem value="none">No merchant — assign later</SelectItem>
                   {organizations.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
-                      {o.name} ({o.deviceCount} device{o.deviceCount === 1 ? '' : 's'})
+                      {o.name} ({o.deviceCount} device
+                      {o.deviceCount === 1 ? '' : 's'})
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -234,9 +234,9 @@ function AdminUsersTable() {
     {
       accessorKey: 'deviceCount',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Devices" className="justify-end" />
+        <DataTableColumnHeader column={column} title="Devices" className="justify-start" />
       ),
-      cell: ({ row }) => <div className="text-right">{row.original.deviceCount}</div>,
+      cell: ({ row }) => <div className="text-start">{row.original.deviceCount}</div>,
     },
     createActionsColumn<AdminUserRow>((row) =>
       row.memberId
