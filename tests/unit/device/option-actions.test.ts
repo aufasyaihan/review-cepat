@@ -15,11 +15,15 @@ vi.mock('@/domains/device/server/service', () => ({
   adminReset: vi.fn(),
   ownerForgetDevice: vi.fn(),
 }));
+vi.mock('@/lib/setup-token', () => ({ resolveSetupToken: vi.fn() }));
 
 import { claimForSelfAction, resellDeviceAction } from '@/domains/device/server/option-actions';
 import { adminReset, ownerForgetDevice } from '@/domains/device/server/service';
 import { getActiveOrganization } from '@/domains/merchant/server/permissions';
 import { requireRole } from '@/lib/session';
+import { resolveSetupToken } from '@/lib/setup-token';
+
+const TOKEN = 'valid-token';
 
 function chainable() {
   const where = vi.fn().mockResolvedValue(undefined);
@@ -33,9 +37,36 @@ function chainable() {
 beforeEach(() => {
   vi.clearAllMocks();
   dbMock.update.mockReturnValue(chainable());
+  vi.mocked(resolveSetupToken).mockReturnValue('dev-1');
 });
 
 describe('claimForSelfAction', () => {
+  it('rejects a token that does not prove claim-code validation for this device', async () => {
+    vi.mocked(resolveSetupToken).mockReturnValue('some-other-device');
+    vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(getActiveOrganization).mockResolvedValue({
+      id: 'mem-1',
+      organizationId: 'org-1',
+      role: 'owner',
+    });
+    const result = await claimForSelfAction('dev-1', TOKEN);
+    expect(result.ok).toBe(false);
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects an expired or malformed token', async () => {
+    vi.mocked(resolveSetupToken).mockReturnValue(null);
+    vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(getActiveOrganization).mockResolvedValue({
+      id: 'mem-1',
+      organizationId: 'org-1',
+      role: 'owner',
+    });
+    const result = await claimForSelfAction('dev-1', 'garbage-token');
+    expect(result.ok).toBe(false);
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
   it('rejects a caller who is not an org owner', async () => {
     vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
     vi.mocked(getActiveOrganization).mockResolvedValue({
@@ -43,7 +74,7 @@ describe('claimForSelfAction', () => {
       organizationId: 'org-1',
       role: 'member',
     });
-    const result = await claimForSelfAction('dev-1');
+    const result = await claimForSelfAction('dev-1', TOKEN);
     expect(result.ok).toBe(false);
     expect(dbMock.update).not.toHaveBeenCalled();
   });
@@ -60,7 +91,7 @@ describe('claimForSelfAction', () => {
       status: 'UNCLAIMED',
       organizationId: null,
     });
-    const result = await claimForSelfAction('dev-1');
+    const result = await claimForSelfAction('dev-1', TOKEN);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.redirectUrl).toBe('/dashboard');
     expect(dbMock.update).toHaveBeenCalled();
@@ -84,7 +115,7 @@ describe('claimForSelfAction', () => {
       status: 'CLAIMED',
       organizationId: 'org-other',
     });
-    const result = await claimForSelfAction('dev-1');
+    const result = await claimForSelfAction('dev-1', TOKEN);
     expect(result.ok).toBe(false);
     expect(dbMock.update).not.toHaveBeenCalled();
   });
@@ -97,13 +128,27 @@ describe('claimForSelfAction', () => {
       role: 'owner',
     });
     dbMock.query.device.findFirst.mockResolvedValue(undefined);
-    const result = await claimForSelfAction('dev-1');
+    const result = await claimForSelfAction('dev-1', TOKEN);
     expect(result.ok).toBe(false);
     expect(dbMock.update).not.toHaveBeenCalled();
   });
 });
 
 describe('resellDeviceAction', () => {
+  it('rejects a token that does not prove claim-code validation for this device', async () => {
+    vi.mocked(resolveSetupToken).mockReturnValue('some-other-device');
+    vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(getActiveOrganization).mockResolvedValue({
+      id: 'mem-1',
+      organizationId: 'org-1',
+      role: 'owner',
+    });
+    const result = await resellDeviceAction('dev-1', TOKEN);
+    expect(result.ok).toBe(false);
+    expect(ownerForgetDevice).not.toHaveBeenCalled();
+    expect(adminReset).not.toHaveBeenCalled();
+  });
+
   it('rejects a non-owner', async () => {
     vi.mocked(requireRole).mockResolvedValue({ id: 'user-1' } as never);
     vi.mocked(getActiveOrganization).mockResolvedValue({
@@ -111,7 +156,7 @@ describe('resellDeviceAction', () => {
       organizationId: 'org-1',
       role: 'member',
     });
-    const result = await resellDeviceAction('dev-1');
+    const result = await resellDeviceAction('dev-1', TOKEN);
     expect(result.ok).toBe(false);
     expect(ownerForgetDevice).not.toHaveBeenCalled();
   });
@@ -132,7 +177,7 @@ describe('resellDeviceAction', () => {
       status: 'CLAIMED',
       organizationId: null,
     });
-    const result = await resellDeviceAction('dev-1');
+    const result = await resellDeviceAction('dev-1', TOKEN);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.claimCode).toBe('ABCD1234');
     expect(adminReset).toHaveBeenCalledWith('dev-1');
@@ -154,7 +199,7 @@ describe('resellDeviceAction', () => {
       status: 'CLAIMED',
       organizationId: 'org-1',
     });
-    const result = await resellDeviceAction('dev-1');
+    const result = await resellDeviceAction('dev-1', TOKEN);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.claimCode).toBe('WXYZ9876');
     expect(ownerForgetDevice).toHaveBeenCalledWith('dev-1', 'org-1');
@@ -173,7 +218,7 @@ describe('resellDeviceAction', () => {
       status: 'CLAIMED',
       organizationId: 'org-other',
     });
-    const result = await resellDeviceAction('dev-1');
+    const result = await resellDeviceAction('dev-1', TOKEN);
     expect(result.ok).toBe(false);
     expect(ownerForgetDevice).not.toHaveBeenCalled();
     expect(adminReset).not.toHaveBeenCalled();

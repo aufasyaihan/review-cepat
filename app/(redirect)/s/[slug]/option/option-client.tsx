@@ -19,7 +19,7 @@ import { claimForSelfAction, resellDeviceAction } from '@/domains/device/server/
 
 type Choice = 'claim' | 'resell' | null;
 
-export function OptionClient({ deviceId }: { deviceId: string }) {
+export function OptionClient({ deviceId, token }: { deviceId: string; token: string }) {
   const router = useRouter();
   const [pending, setPending] = useState<Choice>(null);
   const [isPending, setIsPending] = useState(false);
@@ -27,7 +27,7 @@ export function OptionClient({ deviceId }: { deviceId: string }) {
   async function confirm() {
     setIsPending(true);
     if (pending === 'claim') {
-      const result = await claimForSelfAction(deviceId);
+      const result = await claimForSelfAction(deviceId, token);
       setIsPending(false);
       setPending(null);
       if (!result.ok) return toast.error(result.error);
@@ -36,7 +36,7 @@ export function OptionClient({ deviceId }: { deviceId: string }) {
       return;
     }
     if (pending === 'resell') {
-      const result = await resellDeviceAction(deviceId);
+      const result = await resellDeviceAction(deviceId, token);
       setIsPending(false);
       setPending(null);
       if (!result.ok) return toast.error(result.error);

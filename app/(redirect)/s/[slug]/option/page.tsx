@@ -40,7 +40,7 @@ export default async function DeviceOptionPage({
           This device isn't linked to a merchant yet. What would you like to do?
         </p>
       </div>
-      <OptionClient deviceId={device.id} />
+      <OptionClient deviceId={device.id} token={token} />
     </div>
   );
 }

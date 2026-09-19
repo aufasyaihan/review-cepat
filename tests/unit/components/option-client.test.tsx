@@ -24,7 +24,7 @@ function renderClient() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <OptionClient deviceId="dev-1" />
+      <OptionClient deviceId="dev-1" token="tok-abc" />
     </QueryClientProvider>,
   );
 }
@@ -48,7 +48,7 @@ describe('OptionClient', () => {
     fireEvent.click(screen.getByRole('button', { name: /claim for yourself/i }));
     fireEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
     await waitFor(() => {
-      expect(claimForSelfAction).toHaveBeenCalledWith('dev-1');
+      expect(claimForSelfAction).toHaveBeenCalledWith('dev-1', 'tok-abc');
       expect(mockPush).toHaveBeenCalledWith('/dashboard');
     });
   });
@@ -59,7 +59,7 @@ describe('OptionClient', () => {
     fireEvent.click(screen.getByRole('button', { name: /^resell$/i }));
     fireEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
     await waitFor(() => {
-      expect(resellDeviceAction).toHaveBeenCalledWith('dev-1');
+      expect(resellDeviceAction).toHaveBeenCalledWith('dev-1', 'tok-abc');
       expect(mockPush).toHaveBeenCalledWith('/dashboard');
     });
   });
