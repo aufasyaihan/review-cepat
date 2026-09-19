@@ -12,13 +12,13 @@ vi.mock('@/domains/merchant/server/permissions', () => ({
   isOwner: (m: { role: string }) => m.role === 'owner',
 }));
 vi.mock('@/domains/device/server/service', () => ({
-  adminReset: vi.fn(),
+  ownerResetOrgLessDevice: vi.fn(),
   ownerForgetDevice: vi.fn(),
 }));
 vi.mock('@/lib/setup-token', () => ({ resolveSetupToken: vi.fn() }));
 
 import { claimForSelfAction, resellDeviceAction } from '@/domains/device/server/option-actions';
-import { adminReset, ownerForgetDevice } from '@/domains/device/server/service';
+import { ownerForgetDevice, ownerResetOrgLessDevice } from '@/domains/device/server/service';
 import { getActiveOrganization } from '@/domains/merchant/server/permissions';
 import { requireRole } from '@/lib/session';
 import { resolveSetupToken } from '@/lib/setup-token';
@@ -146,7 +146,7 @@ describe('resellDeviceAction', () => {
     const result = await resellDeviceAction('dev-1', TOKEN);
     expect(result.ok).toBe(false);
     expect(ownerForgetDevice).not.toHaveBeenCalled();
-    expect(adminReset).not.toHaveBeenCalled();
+    expect(ownerResetOrgLessDevice).not.toHaveBeenCalled();
   });
 
   it('rejects a non-owner', async () => {
@@ -168,7 +168,7 @@ describe('resellDeviceAction', () => {
       organizationId: 'org-1',
       role: 'owner',
     });
-    vi.mocked(adminReset).mockResolvedValue({
+    vi.mocked(ownerResetOrgLessDevice).mockResolvedValue({
       device: { id: 'dev-1', slug: 's', name: 'D', status: 'UNCLAIMED', createdAt: '' },
       claimCode: 'ABCD1234',
     });
@@ -180,7 +180,7 @@ describe('resellDeviceAction', () => {
     const result = await resellDeviceAction('dev-1', TOKEN);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.claimCode).toBe('ABCD1234');
-    expect(adminReset).toHaveBeenCalledWith('dev-1');
+    expect(ownerResetOrgLessDevice).toHaveBeenCalledWith('dev-1');
   });
 
   it('resets an own-org device via ownerForgetDevice', async () => {
@@ -203,7 +203,7 @@ describe('resellDeviceAction', () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.claimCode).toBe('WXYZ9876');
     expect(ownerForgetDevice).toHaveBeenCalledWith('dev-1', 'org-1');
-    expect(adminReset).not.toHaveBeenCalled();
+    expect(ownerResetOrgLessDevice).not.toHaveBeenCalled();
   });
 
   it('fails when the device belongs to another org', async () => {
@@ -221,6 +221,6 @@ describe('resellDeviceAction', () => {
     const result = await resellDeviceAction('dev-1', TOKEN);
     expect(result.ok).toBe(false);
     expect(ownerForgetDevice).not.toHaveBeenCalled();
-    expect(adminReset).not.toHaveBeenCalled();
+    expect(ownerResetOrgLessDevice).not.toHaveBeenCalled();
   });
 });

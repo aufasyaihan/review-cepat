@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { and, asc, count, desc, eq, isNotNull, like, ne, or } from 'drizzle-orm';
 
-import { getDb } from '@/db';
+import { type Db, getDb } from '@/db';
 import { account, device, member, merchantProfile, organization, session, user } from '@/db/schema';
 import { claimDeviceSchema } from '@/domains/device/schemas';
 import type { DeviceSummary } from '@/domains/device/types';
@@ -763,6 +763,29 @@ export function slugifyName(name: string): string {
 }
 
 /**
+ * Finds a slug for `trimmedName` that isn't already taken, retrying with a
+ * random suffix on collision. Throws rather than silently proceeding with a
+ * possibly-still-colliding slug if every attempt collides.
+ */
+async function uniqueOrgSlug(db: Db, trimmedName: string): Promise<string> {
+  let slug = slugifyName(trimmedName);
+  for (let i = 0; i < 5; i++) {
+    const existing = await db.query.organization.findFirst({ where: eq(organization.slug, slug) });
+    if (!existing) return slug;
+    slug = `${slugifyName(trimmedName)}-${randomSlug(4)}`;
+  }
+  const existing = await db.query.organization.findFirst({ where: eq(organization.slug, slug) });
+  if (existing) {
+    throw new AppError(
+      409,
+      'SLUG_EXHAUSTED',
+      'Could not generate a unique merchant slug — try a different name',
+    );
+  }
+  return slug;
+}
+
+/**
  * Creates only the org shell — business name, NO owner (FR-054). Created
  * directly because Better Auth's createOrganization always makes the caller
  * the owner; the admin is not a member of the new merchant.
@@ -770,14 +793,7 @@ export function slugifyName(name: string): string {
 export async function createOrganizationShell(name: string): Promise<OrganizationWithDevices> {
   const db = getDb();
   const trimmed = name.trim();
-  let slug = slugifyName(trimmed);
-  for (let i = 0; i < 5; i++) {
-    const existing = await db.query.organization.findFirst({
-      where: eq(organization.slug, slug),
-    });
-    if (!existing) break;
-    slug = `${slugifyName(trimmed)}-${randomSlug(4)}`;
-  }
+  const slug = await uniqueOrgSlug(db, trimmed);
   await db.insert(organization).values({
     id: randomUUID(),
     name: trimmed,
@@ -804,12 +820,7 @@ export async function createOrganizationForUser(
 ): Promise<{ organizationId: string }> {
   const db = getDb();
   const trimmed = businessName.trim();
-  let slug = slugifyName(trimmed);
-  for (let i = 0; i < 5; i++) {
-    const existing = await db.query.organization.findFirst({ where: eq(organization.slug, slug) });
-    if (!existing) break;
-    slug = `${slugifyName(trimmed)}-${randomSlug(4)}`;
-  }
+  const slug = await uniqueOrgSlug(db, trimmed);
   const created = await auth.api.createOrganization({
     body: { name: trimmed, slug, userId },
   });

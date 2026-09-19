@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, ne } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { destination, device, merchantProfile, organization, scanEvent } from '@/db/schema';
@@ -498,6 +498,36 @@ export async function ownerForgetDevice(
     where: and(eq(device.id, id), eq(device.organizationId, organizationId)),
   });
   if (!owned) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found in this organization');
+
+  const now = new Date();
+  const claimCode = generateClaimCode();
+  await clearDeviceConfig(id, now);
+  await db
+    .update(device)
+    .set({
+      status: 'UNCLAIMED',
+      organizationId: null,
+      claimCodeHash: hashClaimCode(claimCode),
+      updatedAt: now,
+    })
+    .where(eq(device.id, id));
+  return { device: toSummmary(await readDeviceOrFail(id)), claimCode };
+}
+
+/**
+ * Owner-triggered reset for a device with no organization yet (the /option
+ * "Resell" choice, before the caller has claimed it). Unlike adminReset,
+ * this does not trust the caller as a platform admin — it only asserts the
+ * device is genuinely still org-less before resetting it.
+ */
+export async function ownerResetOrgLessDevice(
+  id: string,
+): Promise<{ device: DeviceSummary; claimCode: string }> {
+  const db = getDb();
+  const row = await db.query.device.findFirst({
+    where: and(eq(device.id, id), isNull(device.organizationId)),
+  });
+  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found');
 
   const now = new Date();
   const claimCode = generateClaimCode();

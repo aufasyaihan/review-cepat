@@ -3,7 +3,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { device } from '@/db/schema';
-import { adminReset, ownerForgetDevice } from '@/domains/device/server/service';
+import { ownerForgetDevice, ownerResetOrgLessDevice } from '@/domains/device/server/service';
 import {
   getActiveOrganization,
   isOwner,
@@ -85,7 +85,7 @@ export async function resellDeviceAction(
     }
     const result =
       existing.organizationId === null
-        ? await adminReset(deviceId)
+        ? await ownerResetOrgLessDevice(deviceId)
         : await ownerForgetDevice(deviceId, membership.organizationId);
     return ok({ claimCode: result.claimCode });
   } catch (err) {
