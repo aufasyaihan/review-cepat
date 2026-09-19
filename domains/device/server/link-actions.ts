@@ -21,7 +21,7 @@ export async function linkDeviceAfterAuthAction(
   if (!deviceId) return fail('This device link has expired — please scan the device again');
 
   try {
-    return ok(await resolvePostClaim(deviceId, session.id));
+    return ok(await resolvePostClaim(deviceId, session.id, token));
   } catch (err) {
     return fail(err instanceof Error ? err.message : 'Could not link this device');
   }

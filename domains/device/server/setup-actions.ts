@@ -26,12 +26,12 @@ export async function setupClaimCodeAction(
     }
     const device = await claimAccountless(slug, parsed.data.claimCode);
 
+    const token = issueSetupToken(device.id);
     const session = await getSession();
     if (session) {
-      return ok(await resolvePostClaim(device.id, session.id));
+      return ok(await resolvePostClaim(device.id, session.id, token));
     }
 
-    const token = issueSetupToken(device.id);
     return ok({ redirectUrl: `/s/${device.slug}/setup/redirect?t=${token}` });
   } catch (err) {
     return fail(err instanceof Error ? err.message : 'Setup failed');

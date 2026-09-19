@@ -60,6 +60,23 @@ describe('resolvePostClaim', () => {
     expect(dbMock.update).not.toHaveBeenCalled();
   });
 
+  it('appends the claim-proof token to the /option redirect when one is passed', async () => {
+    dbMock.query.device.findFirst.mockResolvedValue({
+      id: 'dev-2',
+      slug: 'dev-2-slug',
+      organizationId: null,
+    });
+    vi.mocked(getActiveOrganization).mockResolvedValue({
+      id: 'mem-2',
+      organizationId: 'org-caller',
+      role: 'owner',
+    });
+
+    const result = await resolvePostClaim('dev-2', 'user-2', 'tok-123');
+    expect(result).toEqual({ redirectUrl: '/s/dev-2-slug/option?t=tok-123' });
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
   it('binds a member into their own org when the device has none', async () => {
     dbMock.query.device.findFirst.mockResolvedValue({
       id: 'dev-3',

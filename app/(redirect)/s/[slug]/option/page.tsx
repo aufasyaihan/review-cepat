@@ -1,13 +1,20 @@
 import { notFound, redirect } from 'next/navigation';
 import { getBySlug } from '@/domains/device/server/service';
 import { getSession } from '@/lib/session';
-import { issueSetupToken } from '@/lib/setup-token';
+import { resolveSetupToken } from '@/lib/setup-token';
 import { OptionClient } from './option-client';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DeviceOptionPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function DeviceOptionPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ t?: string }>;
+}) {
   const { slug } = await params;
+  const { t } = await searchParams;
   const device = await getBySlug(slug);
   if (!device) notFound();
 
@@ -15,9 +22,14 @@ export default async function DeviceOptionPage({ params }: { params: Promise<{ s
     redirect('/dashboard');
   }
 
+  const token = t;
+  if (typeof token !== 'string' || resolveSetupToken(token) !== device.id) {
+    redirect(`/s/${slug}/setup`);
+  }
+
   const session = await getSession();
   if (!session) {
-    redirect(`/login?d=${issueSetupToken(device.id)}`);
+    redirect(`/login?d=${token}`);
   }
 
   return (

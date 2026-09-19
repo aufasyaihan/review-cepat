@@ -34,6 +34,6 @@ describe('linkDeviceAfterAuthAction', () => {
     const result = await linkDeviceAfterAuthAction('good-token');
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.redirectUrl).toBe('/dashboard');
-    expect(resolvePostClaim).toHaveBeenCalledWith('dev-1', 'user-1');
+    expect(resolvePostClaim).toHaveBeenCalledWith('dev-1', 'user-1', 'good-token');
   });
 });

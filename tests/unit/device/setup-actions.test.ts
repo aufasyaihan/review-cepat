@@ -68,11 +68,12 @@ describe('setupClaimCodeAction (US1 step 1)', () => {
       email: 'a@b.com',
       name: 'A',
     } as never);
-    vi.mocked(resolvePostClaim).mockResolvedValue({ redirectUrl: '/s/slug-one/option' });
+    vi.mocked(resolvePostClaim).mockResolvedValue({ redirectUrl: '/s/slug-one/option?t=tok-123' });
 
     const result = await setupClaimCodeAction('slug-one', { claimCode: 'ABCD1234' });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.data.redirectUrl).toBe('/s/slug-one/option');
-    expect(issueSetupToken).not.toHaveBeenCalled();
+    if (result.ok) expect(result.data.redirectUrl).toBe('/s/slug-one/option?t=tok-123');
+    expect(resolvePostClaim).toHaveBeenCalledWith('dev-1', 'user-1', 'tok-123');
+    expect(issueSetupToken).toHaveBeenCalledWith('dev-1');
   });
 });
