@@ -427,11 +427,15 @@ export async function claimWithCode(
  * no account bound yet). Decides where the caller goes next: bind
  * directly into an org if one is already attached to the device or the
  * caller is a non-owner member, or send an owner to the resell/claim
- * decision when the device has no org yet.
+ * decision when the device has no org yet. When the owner is sent to
+ * `/option`, the recently-validated claim-code proof token (when present)
+ * is appended as `?t=<token>` so the page re-validates instead of
+ * self-minting one.
  */
 export async function resolvePostClaim(
   deviceId: string,
   userId: string,
+  token?: string,
 ): Promise<{ redirectUrl: string }> {
   const db = getDb();
   const row = await db.query.device.findFirst({ where: eq(device.id, deviceId) });
@@ -457,7 +461,7 @@ export async function resolvePostClaim(
     return { redirectUrl: '/dashboard' };
   }
 
-  return { redirectUrl: `/s/${row.slug}/option` };
+  return { redirectUrl: `/s/${row.slug}/option${token ? `?t=${token}` : ''}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -540,17 +544,6 @@ export async function listAllMembers(): Promise<MemberWithUser[]> {
   return sortByOrgThenOwnerFirst(
     rows.map((r) => toMemberWithUser(r, countByMember.get(r.id) ?? 0)),
   );
-}
-
-/** Admin view: a single member in any organization, for the detail page. */
-export async function getMemberById(memberId: string): Promise<MemberWithUser | null> {
-  const row = await getDb().query.member.findFirst({
-    where: eq(member.id, memberId),
-    with: { user: true, organization: true },
-  });
-  if (!row) return null;
-  const countByMember = await memberDeviceCounts();
-  return toMemberWithUser(row, countByMember.get(row.id) ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -854,44 +847,6 @@ export async function deleteOrganizationAction(organizationId: string): Promise<
   });
   if (!org) throw new AppError(404, 'ORGANIZATION_NOT_FOUND', 'Merchant not found');
   await getDb().delete(organization).where(eq(organization.id, organizationId));
-}
-
-async function assertMemberInOrg(memberId: string, organizationId: string) {
-  const row = await getDb().query.member.findFirst({
-    where: and(eq(member.id, memberId), eq(member.organizationId, organizationId)),
-  });
-  if (!row) throw new AppError(404, 'MEMBER_NOT_FOUND', 'Member not found in this organization');
-  return row;
-}
-
-async function assertDeviceInOrg(deviceId: string, organizationId: string) {
-  const row = await getDb().query.device.findFirst({
-    where: and(eq(device.id, deviceId), eq(device.organizationId, organizationId)),
-  });
-  if (!row) throw new AppError(404, 'DEVICE_NOT_FOUND', 'Device not found in this organization');
-  return row;
-}
-
-/** FR-027: assign a device to a sub-merchant member of the same organization. */
-export async function assignDevice(
-  deviceId: string,
-  memberId: string,
-  organizationId: string,
-): Promise<void> {
-  const db = getDb();
-  await assertDeviceInOrg(deviceId, organizationId);
-  await assertMemberInOrg(memberId, organizationId);
-  await db.update(device).set({ memberId, updatedAt: new Date() }).where(eq(device.id, deviceId));
-}
-
-/** FR-027: remove a member assignment; the org owner still sees the device. */
-export async function unassignDevice(deviceId: string, organizationId: string): Promise<void> {
-  const db = getDb();
-  await assertDeviceInOrg(deviceId, organizationId);
-  await db
-    .update(device)
-    .set({ memberId: null, updatedAt: new Date() })
-    .where(eq(device.id, deviceId));
 }
 
 /**
