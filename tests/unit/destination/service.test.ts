@@ -234,13 +234,14 @@ describe('destination service', () => {
 
   // --- searchPlaces ---
   describe('searchPlaces', () => {
-    it('returns empty when no API key', async () => {
-      const result = await searchPlaces('coffee shop');
-      expect(result).toEqual([]);
+    it('throws when no API key is configured', async () => {
+      await expect(searchPlaces('coffee shop')).rejects.toMatchObject({
+        status: 502,
+        code: 'PLACES_NOT_CONFIGURED',
+      });
     });
 
-    it('returns empty on empty query', async () => {
-      vi.stubEnv('GOOGLE_PLACES_API_KEY', 'key');
+    it('returns empty on empty query even without a key', async () => {
       const result = await searchPlaces('   ');
       expect(result).toEqual([]);
     });
@@ -253,14 +254,14 @@ describe('destination service', () => {
 
     it('returns mapped and sliced results', async () => {
       vi.stubEnv('GOOGLE_PLACES_API_KEY', 'key');
-      const results = [
-        { place_id: 'p1', name: 'Place 1', formatted_address: 'Addr', website: 'https://w.com' },
-        { place_id: 'p2', name: 'Place 2' },
-        { place_id: undefined, name: 'No ID' }, // filtered out
+      const places = [
+        { id: 'p1', displayName: { text: 'Place 1' }, formattedAddress: 'Addr' },
+        { id: 'p2', displayName: { text: 'Place 2' } },
+        { id: undefined, displayName: { text: 'No ID' } }, // filtered out
       ];
       globalThis.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ results }),
+        json: async () => ({ places }),
       });
       const result = await searchPlaces('coffee');
       expect(result).toHaveLength(2);
@@ -268,28 +269,24 @@ describe('destination service', () => {
         googlePlaceId: 'p1',
         name: 'Place 1',
         formattedAddress: 'Addr',
-        website: 'https://w.com',
       });
       expect(result[1]).toMatchObject({
         googlePlaceId: 'p2',
         formattedAddress: null,
-        website: null,
       });
     });
 
-    it('handles missing name and missing results field', async () => {
+    it('handles missing name and missing places field', async () => {
       vi.stubEnv('GOOGLE_PLACES_API_KEY', 'key');
       globalThis.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ results: [{ place_id: 'p3' }] }),
+        json: async () => ({ places: [{ id: 'p3' }] }),
       });
       const result = await searchPlaces('coffee');
-      expect(result).toEqual([
-        { googlePlaceId: 'p3', name: '', formattedAddress: null, website: null },
-      ]);
+      expect(result).toEqual([{ googlePlaceId: 'p3', name: '', formattedAddress: null }]);
     });
 
-    it('returns empty when response has no results key', async () => {
+    it('returns empty when response has no places key', async () => {
       vi.stubEnv('GOOGLE_PLACES_API_KEY', 'key');
       globalThis.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
@@ -301,10 +298,13 @@ describe('destination service', () => {
 
     it('truncates to 20 results', async () => {
       vi.stubEnv('GOOGLE_PLACES_API_KEY', 'key');
-      const results = Array.from({ length: 25 }, (_, i) => ({ place_id: `p${i}`, name: `P ${i}` }));
+      const places = Array.from({ length: 25 }, (_, i) => ({
+        id: `p${i}`,
+        displayName: { text: `P ${i}` },
+      }));
       globalThis.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ results }),
+        json: async () => ({ places }),
       });
       const result = await searchPlaces('coffee');
       expect(result).toHaveLength(20);

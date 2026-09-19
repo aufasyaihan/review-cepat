@@ -1,9 +1,28 @@
 'use client';
 
+import { ExternalLinkIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { DestinationRow, type DestinationRowValue } from '@/components/forms/destination-editor';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+
+import {
+  ExtraLinkRow,
+  type ExtraLinkValue,
+  type GooglePlaceValue,
+  mapsPlaceUrl,
+  PlaceSearch,
+} from '@/components/forms/destination-editor';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { deriveReviewUrl } from '@/domains/destination';
 import { saveSetupDestinationsAction } from '@/domains/destination/server/setup-actions';
 import { useAction } from '@/hooks/use-action';
 
@@ -17,22 +36,34 @@ export function SetupRedirectClient({
   deviceName: string;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<'single' | 'multi'>('single');
-  const [rows, setRows] = useState<DestinationRowValue[]>([
-    { type: 'GOOGLE_REVIEW', label: '', url: '', placeId: '' },
-  ]);
+  const [place, setPlace] = useState<GooglePlaceValue | null>(null);
+  const [showLinks, setShowLinks] = useState(false);
+  const [links, setLinks] = useState<ExtraLinkValue[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const save = useAction(
-    (destinations: typeof rows) =>
+    () =>
       saveSetupDestinationsAction(deviceId, token, {
-        destinations: destinations.map((r, position) => ({
-          type: r.type,
-          label: r.label || undefined,
-          url: r.url || undefined,
-          placeId: r.placeId || undefined,
-          position,
-          active: true,
-        })),
+        destinations: [
+          ...(place
+            ? [
+                {
+                  type: 'GOOGLE_REVIEW' as const,
+                  label: place.name,
+                  placeId: place.googlePlaceId,
+                  position: 0,
+                  active: true,
+                },
+              ]
+            : []),
+          ...links.map((link, i) => ({
+            type: 'CUSTOM_URL' as const,
+            label: link.label || undefined,
+            url: link.url,
+            position: (place ? 1 : 0) + i,
+            active: true,
+          })),
+        ],
       }),
     {
       successMsg: 'Device set up',
@@ -40,109 +71,139 @@ export function SetupRedirectClient({
     },
   );
 
-  const update = (i: number, patch: Partial<DestinationRowValue>) =>
-    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const updateLink = (i: number, patch: Partial<ExtraLinkValue>) =>
+    setLinks((rows) => rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
 
-  const setRowFromPlace = (i: number, place: { googlePlaceId: string; name: string }) =>
-    update(i, { type: 'GOOGLE_REVIEW', placeId: place.googlePlaceId, label: place.name });
-
-  const canSave = rows.some((r) => r.placeId || r.url);
-  const ready = mode === 'single' ? rows.length === 1 && !!rows[0].placeId : canSave;
+  const validLinks = links.filter((l) => l.url.trim().length > 0);
+  const canSubmit = !!place || validLinks.length > 0;
 
   return (
-    <Card className="w-full max-w-lg">
-      <CardHeader>
-        <h1 className="text-xl font-semibold">Configure {deviceName}</h1>
-        <p className="text-sm text-muted-foreground">Choose what customers reach when they scan.</p>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex gap-2" role="tablist" aria-label="Destination type">
-          {(['single', 'multi'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={mode === m}
-              onClick={() => {
-                setMode(m);
-                setRows(
-                  m === 'single'
-                    ? [{ type: 'GOOGLE_REVIEW', label: '', url: '', placeId: '' }]
-                    : [{ type: 'WEBSITE', label: '', url: '', placeId: '' }],
-                );
-              }}
-              className={`rounded border px-4 py-2 text-sm ${
-                mode === m ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-              }`}
-            >
-              {m === 'single' ? 'Single link' : 'Multiple links'}
-            </button>
-          ))}
-        </div>
+    <>
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle className="text-xl font-semibold text-center">
+            Configure {deviceName}
+          </CardTitle>
+          <CardDescription className="text-sm text-muted-foreground text-center">
+            Choose what customers reach when they scan.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex flex-col gap-2">
+            <Label className="text-sm font-medium" htmlFor="google-place-search">
+              Google Place
+            </Label>
+            <PlaceSearch value={place} onSelect={setPlace} setupAuth={{ deviceId, token }} />
+          </div>
 
-        {mode === 'single' ? (
-          <div className="space-y-3 rounded border p-5">
-            <p className="text-sm text-muted-foreground">
-              Single link: pick a business on Google — customers are redirected straight to its
-              review page.
-            </p>
-            {rows.length > 0 && (
-              <DestinationRow
-                // biome-ignore lint/suspicious/noArrayIndexKey: single row, index is position identity
-                key={0}
-                index={0}
-                row={rows[0]!}
-                onUpdate={(patch) => update(0, patch)}
-                onPlace={(place) => setRowFromPlace(0, place)}
-                onRemove={() => setRows([])}
-                canRemove={false}
-              />
+          <div className="flex items-center gap-3 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowLinks(true);
+                setLinks((rows) => [...rows, { label: '', url: '' }]);
+              }}
+            >
+              + Add More Links
+            </Button>
+          </div>
+
+          <div className="max-h-[calc(100dvh-40rem)] overflow-y-auto pr-2">
+            {showLinks && (
+              <div className="space-y-3">
+                {links.map((link, i) => (
+                  <ExtraLinkRow
+                    // biome-ignore lint/suspicious/noArrayIndexKey: editable unsaved rows, index is position identity until saved
+                    key={i}
+                    index={i}
+                    value={link}
+                    onChange={(patch) => updateLink(i, patch)}
+                    onRemove={() => setLinks((rows) => rows.filter((_, idx) => idx !== i))}
+                  />
+                ))}
+              </div>
             )}
           </div>
-        ) : (
-          <div className="space-y-3 rounded border p-5">
-            {rows.map((row, i) => (
-              <DestinationRow
-                // biome-ignore lint/suspicious/noArrayIndexKey: editable unsaved rows, index is position identity until saved
-                key={i}
-                index={i}
-                row={row}
-                onUpdate={(patch) => update(i, patch)}
-                onPlace={(place) => setRowFromPlace(i, place)}
-                onRemove={() => setRows((r) => r.filter((_, idx) => idx !== i))}
-                canRemove={rows.length > 1}
-              />
-            ))}
-            <button
-              type="button"
-              onClick={() =>
-                setRows((r) => [...r, { type: 'WEBSITE', label: '', url: '', placeId: '' }])
-              }
-              className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
-            >
-              + Add link
-            </button>
-          </div>
-        )}
 
-        <div className="flex items-center gap-3">
-          <button
+          <Button
             type="button"
-            disabled={save.isPending || !ready}
-            onClick={() => save.mutate(rows)}
-            className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60"
+            disabled={!canSubmit}
+            onClick={() => setConfirmOpen(true)}
+            className="w-full"
           >
-            {save.isPending ? 'Saving…' : 'Finish setup'}
-          </button>
-          <p className="text-xs text-muted-foreground">
-            {ready
-              ? 'You can edit this anytime later.'
-              : mode === 'single'
-                ? 'Pick a place to continue.'
-                : 'Add at least one destination.'}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+            Finish
+          </Button>
+          {!canSubmit && (
+            <p className="text-center text-xs text-muted-foreground">
+              Pick a Google place or add at least one link to continue.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm setup</DialogTitle>
+            <DialogDescription>
+              Review what customers will be sent to before finishing setup.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {place && (
+              <div className="space-y-1 rounded border p-3 text-sm">
+                <p className="font-medium">{place.name}</p>
+                {place.formattedAddress && (
+                  <p className="text-xs text-muted-foreground">{place.formattedAddress}</p>
+                )}
+                <div className="flex flex-wrap gap-3 pt-1 text-xs">
+                  <a
+                    href={deriveReviewUrl(place.googlePlaceId)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 underline underline-offset-2"
+                  >
+                    Review link <ExternalLinkIcon className="size-3" />
+                  </a>
+                  <a
+                    href={mapsPlaceUrl(place.googlePlaceId)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 underline underline-offset-2"
+                  >
+                    Google Maps place <ExternalLinkIcon className="size-3" />
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {validLinks.map((link) => (
+              <div key={link.url} className="space-y-1 rounded border p-3 text-sm">
+                <p className="font-medium">{link.label || 'Untitled link'}</p>
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs underline underline-offset-2"
+                >
+                  {link.url} <ExternalLinkIcon className="size-3" />
+                </a>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Back
+            </Button>
+            <Button disabled={save.isPending} onClick={() => save.mutate()}>
+              {save.isPending ? 'Saving…' : 'Confirm & Finish'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -8,7 +8,7 @@ import { GridBackground } from '@/components/layout/grid-background';
  */
 export default function RedirectLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative flex min-h-dvh flex-1 items-center justify-center overflow-hidden bg-gradient-to-b from-white via-sky-50/40 to-blue-50/60 px-4">
+    <div className="relative flex min-h-dvh flex-1 items-center justify-center overflow-hidden bg-linear-to-b from-white via-sky-50/40 to-blue-50/60 px-4">
       <div
         aria-hidden
         className="pointer-events-none absolute -top-32 left-1/2 -z-10 size-96 -translate-x-1/2 rounded-full bg-sky-400/20 blur-3xl"

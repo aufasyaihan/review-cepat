@@ -26,7 +26,12 @@ const DEVICE = {
 
 function renderClient() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(deviceQueries.list().queryKey, [DEVICE]);
+  client.setQueryData(deviceQueries.paginatedList({ q: '', page: 1, limit: 10 }).queryKey, {
+    rows: [DEVICE],
+    total: 1,
+    page: 1,
+    limit: 10,
+  });
   return render(
     <QueryClientProvider client={client}>
       <DevicesClient isOwner />

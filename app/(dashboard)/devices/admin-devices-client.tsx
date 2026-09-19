@@ -1,9 +1,9 @@
 'use client';
 
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Check, Copy } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { createActionsColumn } from '@/components/ui/data-table/actions-column';
 import DataTable from '@/components/ui/data-table/data-table';
 import { DataTableColumnHeader } from '@/components/ui/data-table/data-table-header';
+import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import {
   Dialog,
   DialogContent,
@@ -50,14 +51,32 @@ import { useAction } from '@/hooks/use-action';
 import useCopy from '@/hooks/use-copy';
 import { EditDeviceDialog } from './edit-device-dialog';
 
-const baseUrl = `${window.location.protocol}//${window.location.host}`;
-
 export function AdminDevicesClient({
   organizations,
 }: {
   organizations: OrganizationWithDevices[];
 }) {
-  const { data: devices } = useSuspenseQuery(adminQueries.devices());
+  const baseUrl = useMemo(
+    () =>
+      typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : '',
+    [],
+  );
+  const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const { data, isPending } = useQuery(
+    adminQueries.paginatedDevices({ q: debouncedQ, page, limit }),
+  );
+  const devices = data?.rows ?? [];
+  const total = data?.total ?? 0;
+
   const [createOpen, setCreateOpen] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<DeviceSummary | null>(null);
   const [pendingReset, setPendingReset] = useState<string | null>(null);
@@ -157,7 +176,16 @@ export function AdminDevicesClient({
     ]),
   ];
 
-  if (devices.length === 0) {
+  if (isPending && !data) {
+    return (
+      <div className="flex min-w-0 flex-col gap-4">
+        <h1 className="text-xl font-semibold">Device inventory</h1>
+        <DataTableSkeleton columnCount={5} rowCount={5} />
+      </div>
+    );
+  }
+
+  if (total === 0 && !debouncedQ) {
     return (
       <div>
         <div className="flex items-center justify-between">
@@ -185,8 +213,31 @@ export function AdminDevicesClient({
         columns={columns}
         data={devices}
         showRowSelected={false}
+        manualPagination
+        pageCount={Math.max(1, Math.ceil(total / limit))}
+        pagination={{ pageIndex: page - 1, pageSize: limit }}
+        onPaginationChange={(updater) => {
+          const next =
+            typeof updater === 'function'
+              ? updater({ pageIndex: page - 1, pageSize: limit })
+              : updater;
+          setPage(next.pageIndex + 1);
+          setLimit(next.pageSize);
+        }}
         headerContent={<h1 className="text-xl font-semibold">Device inventory</h1>}
         actions={<Button onClick={() => setCreateOpen(true)}>New device</Button>}
+        toolbar={
+          <Input
+            aria-label="Search devices…"
+            placeholder="Search devices…"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+            className="max-w-56"
+          />
+        }
       />
       <AlertDialog
         open={pendingReset !== null}
@@ -333,7 +384,13 @@ function CreateDeviceDialog({
     slug: string;
     claimCode: string;
   } | null>(null);
-  const { isCopied, copyToClipboard } = useCopy();
+  const urlCopy = useCopy();
+  const claimCodeCopy = useCopy();
+  const baseUrl = useMemo(
+    () =>
+      typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : '',
+    [],
+  );
 
   const create = useAction(
     (args: { name: string; organizationId?: string }) =>
@@ -345,43 +402,77 @@ function CreateDeviceDialog({
     },
   );
 
-  const handleOpenChange = (next: boolean) => {
+  const resetState = () => {
+    setResult(null);
+    setName('');
+    setOrgId('');
+    urlCopy.resetHasCopied();
+    claimCodeCopy.resetHasCopied();
+  };
+
+  const handleOpenChange = (
+    next: boolean,
+    eventDetails?: { reason?: string; cancel: () => void },
+  ) => {
     if (!next) {
-      setResult(null);
-      setName('');
-      setOrgId('');
+      if (result && eventDetails && eventDetails.reason !== 'close-press') {
+        eventDetails.cancel();
+        return;
+      }
+      resetState();
     }
     onOpenChange(next);
   };
 
+  const handleDone = () => {
+    resetState();
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" showCloseButton={!result}>
         {result ? (
           <div className="mt-2 space-y-4" data-testid="new-device-result">
             <DialogHeader>
               <DialogTitle>Device created</DialogTitle>
-              <DialogDescription>
-                Public URL: <code className="rounded bg-muted px-1">/s/{result.slug}</code>
-              </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 text-sm">
-              <p>One-time claim code (shown once, distribute with the device):</p>
+              <p>Device URL</p>
+              <span className="relative">
+                <Input disabled value={baseUrl + '/s/' + result.slug} className="w-full pr-10" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute inset-y-0 right-1 my-auto"
+                  onClick={() => urlCopy.copyToClipboard(baseUrl + '/s/' + result.slug)}
+                  disabled={urlCopy.isCopied}
+                >
+                  {urlCopy.isCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </Button>
+              </span>
+            </div>
+            <div className="flex flex-col gap-2 text-sm">
+              <p>One-time claim code (shown once, distribute with the device)</p>
               <span className="relative">
                 <Input disabled value={result.claimCode} className="w-full pr-10" />
                 <Button
                   variant="ghost"
                   size="icon"
                   className="absolute inset-y-0 right-1 my-auto"
-                  onClick={() => copyToClipboard(result.claimCode)}
-                  disabled={isCopied}
+                  onClick={() => claimCodeCopy.copyToClipboard(result.claimCode)}
+                  disabled={claimCodeCopy.isCopied}
                 >
-                  {isCopied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  {claimCodeCopy.isCopied ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Copy className="size-4" />
+                  )}
                 </Button>
               </span>
             </div>
             <DialogFooter>
-              <Button onClick={() => handleOpenChange(false)} disabled={!isCopied}>
+              <Button onClick={handleDone} disabled={!claimCodeCopy.hasCopied}>
                 Done
               </Button>
             </DialogFooter>

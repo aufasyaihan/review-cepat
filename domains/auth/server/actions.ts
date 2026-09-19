@@ -2,6 +2,7 @@
 
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { getDb } from '@/db';
 import { merchantProfile, user } from '@/db/schema';
 import {
@@ -83,10 +84,11 @@ export async function signUpAction(input: SignUpInput): Promise<ActionResult<Aut
 
 export async function signOutAction(): Promise<ActionResult<void>> {
   try {
-    await auth.api.signOut();
+    await auth.api.signOut({ headers: await headers() });
     revalidatePath('/', 'layout');
     return ok(undefined);
-  } catch {
+  } catch (err) {
+    logger.error({ err }, 'sign out failed');
     return fail('Sign out failed');
   }
 }

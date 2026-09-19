@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, like, ne } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { destination, device, merchantProfile, organization, scanEvent } from '@/db/schema';
@@ -18,6 +18,7 @@ import type {
 } from '@/domains/device/types';
 import { generateClaimCode, hashClaimCode, isValidSlug, randomSlug } from '@/lib/codes';
 import { AppError } from '@/lib/errors';
+import { type Paginated, pageParams } from '@/lib/pagination';
 
 function toSummmary(row: {
   id: string;
@@ -150,6 +151,30 @@ export async function listVisible(membership: MembershipLike): Promise<DeviceSum
   return rows.map(toSummmary);
 }
 
+/** Server-paginated variant of {@link listVisible} for table UIs (name search, page/limit). */
+export async function listVisiblePaginated(
+  membership: MembershipLike,
+  opts: { q?: string; page?: number; limit?: number } = {},
+): Promise<Paginated<DeviceSummary>> {
+  const db = getDb();
+  const { page, limit } = pageParams(opts.page, opts.limit);
+  const where = and(
+    orgAccessWhere(membership),
+    ne(device.status, 'DELETED'),
+    ...(opts.q ? [like(device.name, `%${opts.q.trim()}%`)] : []),
+  );
+
+  const rows = await db.query.device.findMany({
+    where,
+    orderBy: desc(device.createdAt),
+    limit,
+    offset: (page - 1) * limit,
+  });
+  const [{ cnt }] = await db.select({ cnt: count() }).from(device).where(where);
+
+  return { rows: rows.map(toSummmary), total: cnt, page, limit };
+}
+
 export async function getVisible(id: string, membership: MembershipLike): Promise<DeviceDetail> {
   const db = getDb();
   const row = await db.query.device.findFirst({
@@ -275,10 +300,9 @@ export async function claimAccountless(
     throw new AppError(409, 'ALREADY_SET_UP', 'This device is already set up and configured');
   }
 
-  await db
-    .update(device)
-    .set({ status: 'CLAIMED', updatedAt: new Date() })
-    .where(eq(device.id, row.id));
+  // Device only becomes CLAIMED once destinations are actually saved
+  // (setForDeviceSetup); validating the code alone must not claim it, so an
+  // abandoned setup leaves the code usable again.
   return { id: row.id, slug: row.slug, name: row.name };
 }
 
@@ -387,6 +411,28 @@ export async function adminList(): Promise<DeviceSummary[]> {
     orderBy: desc(device.createdAt),
   });
   return rows.map(toSummmary);
+}
+
+/** Server-paginated variant of {@link adminList} for the admin device table (name search, page/limit). */
+export async function adminListPaginated(
+  opts: { q?: string; page?: number; limit?: number } = {},
+): Promise<Paginated<DeviceSummary>> {
+  const db = getDb();
+  const { page, limit } = pageParams(opts.page, opts.limit);
+  const where = and(
+    ne(device.status, 'DELETED'),
+    ...(opts.q ? [like(device.name, `%${opts.q.trim()}%`)] : []),
+  );
+
+  const rows = await db.query.device.findMany({
+    where,
+    orderBy: desc(device.createdAt),
+    limit,
+    offset: (page - 1) * limit,
+  });
+  const [{ cnt }] = await db.select({ cnt: count() }).from(device).where(where);
+
+  return { rows: rows.map(toSummmary), total: cnt, page, limit };
 }
 
 export async function adminSetDisabled(id: string, disabled: boolean): Promise<DeviceSummary> {

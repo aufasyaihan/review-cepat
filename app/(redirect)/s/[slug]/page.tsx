@@ -34,6 +34,10 @@ export default async function ScanPage({ params }: { params: Promise<{ slug: str
     notFound();
   }
 
+  if (device.status === 'UNCLAIMED') {
+    redirect(`/s/${slug}/setup`);
+  }
+
   const h = await headers();
   const ua = h.get('user-agent');
   const ip = h.get('x-forwarded-for')?.split(',')[0] ?? h.get('x-real-ip') ?? null;

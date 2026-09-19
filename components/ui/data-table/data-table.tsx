@@ -63,7 +63,7 @@ export default function DataTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     pageCount,
     manualPagination,
-    onPaginationChange,
+    ...(onPaginationChange !== undefined && { onPaginationChange }),
     state: {
       sorting,
       columnFilters,

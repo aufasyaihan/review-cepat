@@ -14,11 +14,19 @@ const roboto = Roboto({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
   title: {
-    default: 'NFC Platform — NFC & QR Redirect SaaS',
-    template: '%s | NFC Platform',
+    default: 'ReviewCepat — NFC & QR Redirect SaaS',
+    template: '%s | ReviewCepat',
   },
   description:
     'Turn physical NFC tags and QR codes into instant redirects to Google Reviews and social links, with scan analytics.',
+  openGraph: {
+    siteName: 'ReviewCepat',
+    images: ['/logo_transparent.png'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['/logo_transparent.png'],
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -22,10 +22,12 @@ export function SetupClaimForm({ slug }: { slug: string }) {
   });
 
   return (
-    <Card>
+    <Card className="shadow-lg">
       <CardHeader>
-        <CardTitle className="text-base">Claim code</CardTitle>
-        <CardDescription>Enter the code printed with your device to begin setup.</CardDescription>
+        <CardTitle className="text-base text-center">Set up your device</CardTitle>
+        <CardDescription className="text-center">
+          Enter the code printed with your device to begin setup.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -35,8 +37,10 @@ export function SetupClaimForm({ slug }: { slug: string }) {
             submit.mutate({ claimCode: code });
           }}
         >
-          <div className="space-y-2">
-            <Label htmlFor="claim-code">Claim code</Label>
+          <div className="flex flex-col gap-2 justify-center items-center">
+            <Label htmlFor="claim-code" className="text-center">
+              Claim code
+            </Label>
             <InputOTP
               id="claim-code"
               maxLength={CLAIM_CODE_LENGTH}
@@ -44,7 +48,7 @@ export function SetupClaimForm({ slug }: { slug: string }) {
               onChange={(value) => setCode(value.toUpperCase())}
               autoComplete="off"
             >
-              <InputOTPGroup>
+              <InputOTPGroup className="*:data-[slot=input-otp-slot]:h-12 *:data-[slot=input-otp-slot]:w-11 *:data-[slot=input-otp-slot]:text-xl">
                 {Array.from({ length: CLAIM_CODE_LENGTH }, (_, i) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length slot layout, index is position identity
                   <InputOTPSlot key={i} index={i} />

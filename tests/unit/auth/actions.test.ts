@@ -11,6 +11,8 @@ vi.mock('@/db', () => ({
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
+vi.mock('next/headers', () => ({ headers: vi.fn().mockResolvedValue(new Headers()) }));
+
 vi.mock('@/lib/auth', () => ({
   auth: {
     api: {

@@ -1,9 +1,9 @@
 'use client';
 
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Copy } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { createActionsColumn } from '@/components/ui/data-table/actions-column';
 import DataTable from '@/components/ui/data-table/data-table';
 import { DataTableColumnHeader } from '@/components/ui/data-table/data-table-header';
+import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import {
   Dialog,
   DialogClose,
@@ -29,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { deviceKeys, deviceQueries } from '@/domains/device/api/queries';
 import {
   forgetDeviceAction,
@@ -41,7 +43,20 @@ import { useAction } from '@/hooks/use-action';
 import { EditDeviceDialog } from './edit-device-dialog';
 
 export function DevicesClient({ isOwner }: { isOwner: boolean }) {
-  const { data: devices } = useSuspenseQuery(deviceQueries.list());
+  const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const { data, isPending } = useQuery(deviceQueries.paginatedList({ q: debouncedQ, page, limit }));
+  const devices = data?.rows ?? [];
+  const total = data?.total ?? 0;
+
   const [pendingPub, setPendingPub] = useState<{
     device: DeviceSummary;
     action: 'publish' | 'unpublish';
@@ -141,7 +156,16 @@ export function DevicesClient({ isOwner }: { isOwner: boolean }) {
     ]),
   ];
 
-  if (devices.length === 0) {
+  if (isPending && !data) {
+    return (
+      <div className="flex min-w-0 flex-col gap-4">
+        <h1 className="text-xl font-semibold">My devices</h1>
+        <DataTableSkeleton columnCount={5} rowCount={5} />
+      </div>
+    );
+  }
+
+  if (total === 0 && !debouncedQ) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <h1 className="text-xl font-semibold">No devices yet</h1>
@@ -158,7 +182,30 @@ export function DevicesClient({ isOwner }: { isOwner: boolean }) {
         columns={columns}
         data={devices}
         showRowSelected={false}
+        manualPagination
+        pageCount={Math.max(1, Math.ceil(total / limit))}
+        pagination={{ pageIndex: page - 1, pageSize: limit }}
+        onPaginationChange={(updater) => {
+          const next =
+            typeof updater === 'function'
+              ? updater({ pageIndex: page - 1, pageSize: limit })
+              : updater;
+          setPage(next.pageIndex + 1);
+          setLimit(next.pageSize);
+        }}
         headerContent={<h1 className="text-xl font-semibold">My devices</h1>}
+        toolbar={
+          <Input
+            aria-label="Search devices…"
+            placeholder="Search devices…"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+            className="max-w-56"
+          />
+        }
       />
       <Dialog open={pendingPub !== null} onOpenChange={(open) => !open && setPendingPub(null)}>
         <DialogContent>

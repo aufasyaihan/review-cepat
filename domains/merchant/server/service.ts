@@ -15,6 +15,7 @@ import {
 import { auth } from '@/lib/auth';
 import { hashClaimCode, randomSlug } from '@/lib/codes';
 import { AppError } from '@/lib/errors';
+import { type Paginated, pageParams } from '@/lib/pagination';
 
 type DeviceRow = {
   id: string;
@@ -164,14 +165,7 @@ export async function listOrganizations(): Promise<OrganizationWithDevices[]> {
   }));
 }
 
-export type Paginated<T> = { rows: T[]; total: number; page: number; limit: number };
-
-function pageParams(page?: number, limit?: number): { page: number; limit: number } {
-  return {
-    page: Math.max(1, Math.floor(page ?? 1)),
-    limit: Math.min(100, Math.max(1, Math.floor(limit ?? 10))),
-  };
-}
+export type { Paginated } from '@/lib/pagination';
 
 /** Every platform account (FR-055 + admin parity): org members AND accounts
  * with no organization yet (platform ADMINs, freshly-seeded MERCHANTs). A

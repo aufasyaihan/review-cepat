@@ -101,12 +101,21 @@ describe('analytics domain (owner-only, SC-008)', () => {
       dailyScans: [],
       merchantCount: 0,
       userCount: 0,
+      deviceCount: 0,
+      statusCounts: {
+        UNCLAIMED: 0,
+        CLAIMED: 0,
+        PUBLISHED: 0,
+        UNPUBLISHED: 0,
+        DISABLED: 0,
+        DELETED: 0,
+      },
     });
   });
 
   it('returns per-device and daily aggregates for owned devices', async () => {
     dbQuery.device.findMany.mockResolvedValue([
-      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1' },
+      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1', status: 'PUBLISHED' },
     ]);
     // totalRows (count), daily, perDevice — in query order
     mockSelectReturn([[{ cnt: 5 }], [{ day: '2025-07-01', cnt: 2 }], [{ deviceId: 'd1', cnt: 3 }]]);
@@ -118,8 +127,8 @@ describe('analytics domain (owner-only, SC-008)', () => {
 
   it('falls back to zero for missing total/per-device counts', async () => {
     dbQuery.device.findMany.mockResolvedValue([
-      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1' },
-      { id: 'd2', slug: 'b', name: 'Beta', organizationId: 'org-1' },
+      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1', status: 'PUBLISHED' },
+      { id: 'd2', slug: 'b', name: 'Beta', organizationId: 'org-1', status: 'CLAIMED' },
     ]);
     // totalRows empty (no rows at all), daily empty, perDevice missing d2
     mockSelectReturn([[], [], [{ deviceId: 'd1', cnt: 1 }]]);
@@ -163,7 +172,7 @@ describe('analytics domain (owner-only, SC-008)', () => {
 describe('overview date-range window (FR-044)', () => {
   beforeEach(() => {
     dbQuery.device.findMany.mockResolvedValue([
-      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1' },
+      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1', status: 'PUBLISHED' },
     ]);
   });
 
@@ -198,9 +207,9 @@ describe('adminOverview (FR-044)', () => {
 
   it('aggregates across ALL devices regardless of organization', async () => {
     dbQuery.device.findMany.mockResolvedValue([
-      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1' },
-      { id: 'd2', slug: 'b', name: 'Beta', organizationId: 'org-2' },
-      { id: 'd3', slug: 'c', name: 'Gamma', organizationId: 'org-3' },
+      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1', status: 'PUBLISHED' },
+      { id: 'd2', slug: 'b', name: 'Beta', organizationId: 'org-2', status: 'CLAIMED' },
+      { id: 'd3', slug: 'c', name: 'Gamma', organizationId: 'org-3', status: 'PUBLISHED' },
     ]);
     // merchant count, user count, totalRows, daily, perDevice — in query order
     mockSelectReturn([
@@ -221,6 +230,9 @@ describe('adminOverview (FR-044)', () => {
     expect(result.deviceScans.map((d) => d.slug)).toEqual(['a', 'b', 'c']);
     expect(result.merchantCount).toBe(4);
     expect(result.userCount).toBe(12);
+    expect(result.deviceCount).toBe(3);
+    expect(result.statusCounts.PUBLISHED).toBe(2);
+    expect(result.statusCounts.CLAIMED).toBe(1);
   });
 
   it('returns non-negative merchant and user counts', async () => {
@@ -236,7 +248,7 @@ describe('adminOverview (FR-044)', () => {
 
   it('zero-fills for an empty window with no scans', async () => {
     dbQuery.device.findMany.mockResolvedValue([
-      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1' },
+      { id: 'd1', slug: 'a', name: 'Alpha', organizationId: 'org-1', status: 'PUBLISHED' },
     ]);
     // merchantCart, userCount, then zeroed scans
     mockSelectReturn([[{ cnt: 2 }], [{ cnt: 5 }], [], [], []]);
@@ -250,6 +262,15 @@ describe('adminOverview (FR-044)', () => {
       dailyScans: [],
       merchantCount: 2,
       userCount: 5,
+      deviceCount: 1,
+      statusCounts: {
+        UNCLAIMED: 0,
+        CLAIMED: 0,
+        PUBLISHED: 1,
+        UNPUBLISHED: 0,
+        DISABLED: 0,
+        DELETED: 0,
+      },
     });
   });
 });

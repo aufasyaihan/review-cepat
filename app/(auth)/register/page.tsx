@@ -1,9 +1,18 @@
-import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { RegisterForm } from './register-form';
 
-export default function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ d?: string }>;
+}) {
+  const { d: deviceToken } = await searchParams;
+  if (!deviceToken) {
+    redirect('/');
+  }
+
   return (
     <div className="flex min-h-[80vh] items-center justify-center">
       <div className="w-full max-w-sm">
@@ -11,12 +20,6 @@ export default function RegisterPage() {
         <Suspense fallback={null}>
           <RegisterForm />
         </Suspense>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          Have a device claim code?{' '}
-          <Link href="/register-claim" className="underline">
-            Register with a claim code
-          </Link>
-        </p>
       </div>
     </div>
   );

@@ -4,15 +4,20 @@ import { api } from '@/lib/http';
 
 export type { DestinationInput, SetDestinationsInput };
 
+export type SetupAuth = { deviceId: string; token: string };
+
 export const destinationKeys = {
   places: (query: string) => ['destination', 'places', query] as const,
 };
 
 export const destinationQueries = {
-  places: (query: string) => ({
+  places: (query: string, setupAuth?: SetupAuth) => ({
     queryKey: destinationKeys.places(query),
     queryFn: () =>
-      api.get<PlaceSearchResult[]>('/api/destination/places').setQuery({ query }).send(),
+      api
+        .get<PlaceSearchResult[]>('/api/destination/places')
+        .setQuery({ query, deviceId: setupAuth?.deviceId, t: setupAuth?.token })
+        .send(),
   }),
 };
 
